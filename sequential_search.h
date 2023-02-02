@@ -29,7 +29,7 @@ public:
         return q_eval;
     }
 
-    int nega_max(int depth) {
+    int nega_max(int alpha, int beta, int depth) {
         if (depth == 0) {
             nodes++;
             return eval(board);
@@ -42,20 +42,27 @@ public:
             board.makeMove(move.move);
             int inner_eval;
             if (depth > 1) {
-                inner_eval = -nega_max(depth - 1);
+                inner_eval = -nega_max(-beta, -alpha, depth - 1);
             } else {
                 inner_eval = -q_search();
             }
+            board.unmakeMove(move.move);
 
             if (inner_eval > eval) {
                 eval = inner_eval;
+                if (eval >= beta) {
+                    break;
+                }
+                if (eval > alpha) {
+                    alpha = eval;
+                }
+
             }
-            board.unmakeMove(move.move);
         }
         return eval;
     }
 
-    int root_max(int depth) {
+    int root_max(int alpha, int beta, int depth) {
         nodes = 0;
         if (depth == 0) {
             nodes++;
@@ -70,16 +77,22 @@ public:
             board.makeMove(move);
             int inner_eval;
             if (depth > 1) {
-                inner_eval = -nega_max(depth - 1);
+                inner_eval = -nega_max(-beta, -alpha, depth - 1);
             } else {
                 inner_eval = -q_search();
             }
+            board.unmakeMove(move);
 
             if (inner_eval > eval) {
                 eval = inner_eval;
                 best_move = move;
+                if (eval >= beta) {
+                    break;
+                }
+                if (eval > alpha) {
+                    alpha = eval;
+                }
             }
-            board.unmakeMove(move);
         }
         std::cout << "Depth " << depth << ": " << convertMoveToUci(best_move) << " eval " << eval << " nodes " << nodes << std::endl;
         return eval;
