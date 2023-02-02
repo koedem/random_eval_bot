@@ -2,6 +2,7 @@
 
 #include "chess.hpp"
 
+template<bool Q_SEARCH>
 class Search {
 
 private:
@@ -12,19 +13,36 @@ public:
     explicit Search(Board& board) : board(board) {
     }
 
-    int q_search() {
+    int q_search(int alpha, int beta) {
         int q_eval = eval(board);
         nodes++;
-        /*Movelist captures;
+        if constexpr (!Q_SEARCH) {
+            return q_eval;
+        }
+
+        if (q_eval >= beta) {
+            return q_eval;
+        }
+        if (q_eval > alpha) {
+            alpha = q_eval;
+        }
+
+        Movelist captures;
         Movegen::legalmoves<CAPTURE>(board, captures);
         for (auto& capture : captures) {
             board.makeMove(capture.move);
-            int inner_eval = -q_search();
+            int inner_eval = -q_search(-beta, -alpha);
+            board.unmakeMove(capture.move);
             if (inner_eval > q_eval) {
                 q_eval = inner_eval;
+                if (q_eval >= beta) {
+                    break;
+                }
+                if (q_eval > alpha) {
+                    alpha = q_eval;
+                }
             }
-            board.unmakeMove(capture.move);
-        }*/
+        }
 
         return q_eval;
     }
@@ -44,7 +62,7 @@ public:
             if (depth > 1) {
                 inner_eval = -nega_max(-beta, -alpha, depth - 1);
             } else {
-                inner_eval = -q_search();
+                inner_eval = -q_search(-beta, -alpha);
             }
             board.unmakeMove(move.move);
 
@@ -66,7 +84,7 @@ public:
         nodes = 0;
         if (depth == 0) {
             nodes++;
-            return q_search();
+            return q_search(-beta, -alpha);
         }
         int eval = INT32_MIN;
         Movelist moves;
@@ -74,12 +92,13 @@ public:
         Move best_move = NO_MOVE;
         for (auto& move_container : moves) {
             auto move = move_container.move;
+            //std::cout << convertMoveToUci(move) << " eval " << eval << " nodes " << nodes << std::endl;
             board.makeMove(move);
             int inner_eval;
             if (depth > 1) {
                 inner_eval = -nega_max(-beta, -alpha, depth - 1);
             } else {
-                inner_eval = -q_search();
+                inner_eval = -q_search(-beta, -alpha);
             }
             board.unmakeMove(move);
 
