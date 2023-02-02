@@ -3,4 +3,4 @@ project(exercise5)
 
 set(CMAKE_CXX_STANDARD 20)
 
-add_executable(exercise5 main.cpp perft_tt.h perft.h sequential_search.h)
+add_executable(exercise5 main.cpp perft_tt.h perft.h sequential_search.h chess.hpp)

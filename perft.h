@@ -16,7 +16,7 @@ private:
     Perft_TT& simpleTT;
     uint64_t position_generations = 0;
 public:
-    PerftTest(T& TT) : simpleTT(TT) {
+    explicit PerftTest(T& TT) : simpleTT(TT) {
     }
 
     uint64_t hash_perft(Board &board, int depth) {
@@ -28,16 +28,16 @@ public:
         }
 
         uint64_t nodes = 0;
-        Movelist moveslist;
-        Movegen::legalmoves<ALL>(board, moveslist);
+        Movelist moves;
+        Movegen::legalmoves<ALL>(board, moves);
         position_generations++;
 
         if (depth == 1)
         {
-            nodes = moveslist.size;
+            nodes = moves.size;
         } else {
-            for (int i = 0; i < moveslist.size; i++) {
-                Move &move = moveslist[i].move;
+            for (int i = 0; i < moves.size; i++) {
+                Move &move = moves[i].move;
                 board.makeMove(move);
                 nodes += hash_perft(board, depth - 1);
                 board.unmakeMove(move);
@@ -55,19 +55,19 @@ public:
      */
     uint64_t perft(Board &board, int depth)
     {
-        Movelist moveslist;
-        Movegen::legalmoves<ALL>(board, moveslist);
+        Movelist moves;
+        Movegen::legalmoves<ALL>(board, moves);
 
         if (depth == 1)
         {
-            return int(moveslist.size);
+            return int(moves.size);
         }
 
         uint64_t nodes = 0;
 
-        for (int i = 0; i < int(moveslist.size); i++)
+        for (int i = 0; i < int(moves.size); i++)
         {
-            Move move = moveslist[i].move;
+            Move move = moves[i].move;
             board.makeMove(move);
             nodes += perft(board, depth - 1);
             board.unmakeMove(move);
