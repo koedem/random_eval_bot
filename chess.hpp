@@ -2,42 +2,6 @@
 
 #include "chess-library/src/chess.hpp"
 
-using namespace Chess;
-
-enum Eval_Type {
-    Incremental_PST,
-    Full_PST,
-    Random
-};
-
-constexpr static Eval_Type EVAL_TYPE = Full_PST;
-
-inline void Board::movePiece(Piece piece, Square fromSq, Square toSq) {
-    removePiece(piece, fromSq);
-    placePiece(piece, toSq);
-}
-
-inline void Board::removePiece(Piece piece, Square sq)
-{
-    piecesBB[piece] &= ~(1ULL << sq);
-    board[sq] = None;
-}
-
-inline void Board::placePiece(Piece piece, Square sq)
-{
-    piecesBB[piece] |= (1ULL << sq);
-    board[sq] = piece;
-}
-
-void init_tables();
-
-
-template<Eval_Type type>
-int eval(Board& board);
-
-int eval(Board& board);
-
-
 /* These values are taken from https://www.chessprogramming.org/PeSTO%27s_Evaluation_Function
    and originate from the program Rofchade: http://www.talkchess.com/forum3/viewtopic.php?f=2&t=68311&start=19 */
 
@@ -162,8 +126,8 @@ int endgame_table_per_piece[6][64] =
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wc99-designator"
 int gamephase_influence[12] = {[WhitePawn] = 0, [BlackPawn] = 0, [WhiteKnight] = 1, [BlackKnight] = 1,
-                               [WhiteBishop] = 1, [BlackBishop] = 1, [WhiteRook] = 2, [BlackRook] = 2,
-                               [WhiteQueen] = 4, [BlackQueen] = 4, [WhiteKing] = 0, [BlackKing] = 0 };
+        [WhiteBishop] = 1, [BlackBishop] = 1, [WhiteRook] = 2, [BlackRook] = 2,
+        [WhiteQueen] = 4, [BlackQueen] = 4, [WhiteKing] = 0, [BlackKing] = 0 };
 #pragma clang diagnostic pop
 
 int midgame_table[12][64];
@@ -175,46 +139,86 @@ void init_tables()
         for (int square = 0; square < 64; square++) {
             midgame_table[piece]    [square] = midgame_table_per_piece[piece][square];
             endgame_table[piece]    [square] = endgame_table_per_piece[piece][square];
-            midgame_table[piece + 6][square] = midgame_table_per_piece[piece][square ^ 56]; // ^ 56 gets the corresponding square from a mirrored board
-            endgame_table[piece + 6][square] = endgame_table_per_piece[piece][square ^ 56]; // We use that for the Black sides values
+            midgame_table[piece + 6][square] = -midgame_table_per_piece[piece][square ^ 56]; // ^ 56 gets the corresponding square from a mirrored board
+            endgame_table[piece + 6][square] = -endgame_table_per_piece[piece][square ^ 56]; // We use that for the Black sides values
         }
     }
 }
 
-template<>
-int eval<Full_PST>(Board& board)
-{
-    int midgame[2] = { 0, 0 };
-    int endgame[2] = { 0, 0 };
-    int gamePhase = 0;
+using namespace Chess;
 
-    for (Square square = SQ_A1; square <= SQ_H8; ++square) {
-        Piece piece = board.board[square];
-        if (piece != None) {
-            midgame[board.colorOf(square)] += midgame_table[piece][square];
-            endgame[board.colorOf(square)] += endgame_table[piece][square];
-            gamePhase += gamephase_influence[piece];
-        }
+enum Eval_Type {
+    Incremental_PST,
+    Full_PST,
+    Random
+};
+
+constexpr static Eval_Type EVAL_TYPE = Full_PST;
+
+
+class Eval_Board : public Chess::Board {
+    int midgame_PST = 0, endgame_PST = 0, game_phase = 0;
+
+public:
+    inline void movePiece(Piece piece, Square fromSq, Square toSq) {
+        removePiece(piece, fromSq);
+        placePiece(piece, toSq);
     }
 
-    int midgame_score_difference = midgame[board.sideToMove] - midgame[!board.sideToMove];
-    int endgame_score_difference = endgame[board.sideToMove] - endgame[!board.sideToMove];
-    int total_weight = 24;
-    int midgame_weight = std::min(gamePhase, total_weight);
-    int endgame_weight = total_weight - midgame_weight;
-    return (midgame_score_difference * midgame_weight + endgame_score_difference * endgame_weight) / total_weight;
-}
+    inline void removePiece(Piece piece, Square sq)
+    {
+        piecesBB[piece] &= ~(1ULL << sq);
+        board[sq] = None;
+        midgame_PST += midgame_table[piece][sq];
+    }
 
-template<>
-int eval<Incremental_PST>(Board& board) {
-    return 0;
-}
+    inline void placePiece(Piece piece, Square sq)
+    {
+        piecesBB[piece] |= (1ULL << sq);
+        board[sq] = piece;
+    }
 
-template<>
-int eval<Random>(Board& board) {
-    return 0;
-}
+    template<Eval_Type type>
+    int eval();
 
-int eval(Board& board) {
-    return eval<EVAL_TYPE>(board);
-}
+    template<>
+    int eval<Full_PST>()
+    {
+        int midgame = 0;
+        int endgame = 0;
+        int gamePhase = 0;
+
+        for (Square square = SQ_A1; square <= SQ_H8; ++square) {
+            Piece piece = board[square];
+            if (piece != None) {
+                midgame += midgame_table[piece][square];
+                endgame += endgame_table[piece][square];
+                gamePhase += gamephase_influence[piece];
+            }
+        }
+
+        int total_weight = 24;
+        int midgame_weight = std::min(gamePhase, total_weight);
+        int endgame_weight = total_weight - midgame_weight;
+        int interpolated = (midgame * midgame_weight + endgame * endgame_weight) / total_weight;
+        return (sideToMove == Chess::White ? 1 : -1) * interpolated;
+    }
+
+    template<>
+    int eval<Incremental_PST>() {
+        int total_weight = 24;
+        int midgame_weight = std::min(game_phase, total_weight);
+        int endgame_weight = total_weight - midgame_weight;
+        int interpolated = (midgame_PST * midgame_weight + endgame_PST * endgame_weight) / total_weight;
+        return (sideToMove == Chess::White ? 1 : -1) * interpolated;
+    }
+
+    template<>
+    int eval<Random>() {
+        return 0;
+    }
+
+    int eval() {
+        return eval<EVAL_TYPE>();
+    }
+};

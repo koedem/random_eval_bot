@@ -6,15 +6,15 @@ template<bool Q_SEARCH>
 class Search {
 
 private:
-    Board board;
+    Eval_Board board;
     uint64_t nodes = 0;
 
 public:
-    explicit Search(Board& board) : board(board) {
+    explicit Search(Eval_Board& board) : board(board) {
     }
 
     int q_search(int alpha, int beta) {
-        int q_eval = eval(board);
+        int q_eval = board.eval();
         nodes++;
         if constexpr (!Q_SEARCH) {
             return q_eval;
@@ -48,10 +48,6 @@ public:
     }
 
     int nega_max(int alpha, int beta, int depth) {
-        if (depth == 0) {
-            nodes++;
-            return eval(board);
-        }
         int eval = INT32_MIN;
         Movelist moves;
         Movegen::legalmoves<ALL>(board, moves);
@@ -81,6 +77,7 @@ public:
     }
 
     int root_max(int alpha, int beta, int depth) {
+        auto start = std::chrono::high_resolution_clock::now();
         nodes = 0;
         if (depth == 0) {
             nodes++;
@@ -113,7 +110,10 @@ public:
                 }
             }
         }
-        std::cout << "Depth " << depth << ": " << convertMoveToUci(best_move) << " eval " << eval << " nodes " << nodes << std::endl;
+        auto end = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double> duration = end - start;
+        std::cout << "Depth " << depth << ": " << convertMoveToUci(best_move) << " eval " << eval << " nodes " << nodes
+            << " time " << duration.count() << " nps " << (nodes / duration.count()) << std::endl;
         return eval;
     }
 };
