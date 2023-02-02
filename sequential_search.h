@@ -12,6 +12,22 @@ public:
     explicit Search(Board& board) : board(board) {
     }
 
+    int q_search() {
+        int q_eval = eval(board);
+        nodes++;
+        /*Movelist captures;
+        Movegen::legalmoves<CAPTURE>(board, captures);
+        for (auto& capture : captures) {
+            board.makeMove(capture.move);
+            int inner_eval = -q_search();
+            if (inner_eval > q_eval) {
+                q_eval = inner_eval;
+            }
+            board.unmakeMove(capture.move);
+        }*/
+
+        return q_eval;
+    }
 
     int nega_max(int depth) {
         if (depth == 0) {
@@ -24,7 +40,13 @@ public:
 
         for (auto& move : moves) {
             board.makeMove(move.move);
-            int inner_eval = -nega_max(depth - 1);
+            int inner_eval;
+            if (depth > 1) {
+                inner_eval = -nega_max(depth - 1);
+            } else {
+                inner_eval = -q_search();
+            }
+
             if (inner_eval > eval) {
                 eval = inner_eval;
             }
@@ -37,7 +59,7 @@ public:
         nodes = 0;
         if (depth == 0) {
             nodes++;
-            return eval(board);
+            return q_search();
         }
         int eval = INT32_MIN;
         Movelist moves;
@@ -46,7 +68,13 @@ public:
         for (auto& move_container : moves) {
             auto move = move_container.move;
             board.makeMove(move);
-            int inner_eval = -nega_max(depth - 1);
+            int inner_eval;
+            if (depth > 1) {
+                inner_eval = -nega_max(depth - 1);
+            } else {
+                inner_eval = -q_search();
+            }
+
             if (inner_eval > eval) {
                 eval = inner_eval;
                 best_move = move;
