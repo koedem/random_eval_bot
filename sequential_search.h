@@ -27,9 +27,9 @@ public:
             alpha = q_eval;
         }
 
-        Movelist captures;
-        Movegen::legalmoves<CAPTURE>(board, captures);
-        for (auto& capture : captures) {
+        static std::vector<Movelist> captures(255);
+        Movegen::legalmoves<CAPTURE>(board, captures[depth]);
+        for (auto& capture : captures[depth]) {
             board.makeMove(capture.move);
             int inner_eval = -q_search(-beta, -alpha, depth + 1);
             board.unmakeMove(capture.move);
