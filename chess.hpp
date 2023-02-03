@@ -1,6 +1,9 @@
 #pragma once
 
 #include "chess-library/src/chess.hpp"
+#include <random>
+
+using namespace Chess;
 
 /* These values are taken from https://www.chessprogramming.org/PeSTO%27s_Evaluation_Function
    and originate from the program Rofchade: http://www.talkchess.com/forum3/viewtopic.php?f=2&t=68311&start=19 */
@@ -145,80 +148,80 @@ void init_tables()
     }
 }
 
-using namespace Chess;
-
-enum Eval_Type {
-    Incremental_PST,
-    Full_PST,
-    Random
-};
-
-constexpr static Eval_Type EVAL_TYPE = Full_PST;
-
-
-class Eval_Board : public Chess::Board {
-    int midgame_PST = 0, endgame_PST = 0, game_phase = 0;
-
-public:
-    inline void movePiece(Piece piece, Square fromSq, Square toSq) {
-        removePiece(piece, fromSq);
-        placePiece(piece, toSq);
+inline void Board::removePiece(Piece piece, Square sq)
+{
+    piecesBB[piece] &= ~(1ULL << sq);
+    board[sq] = None;
+    if constexpr (EVAL_TYPE == Incremental_PST) {
+        midgame_PST -= midgame_table[piece][sq];
+        endgame_PST -= endgame_table[piece][sq];
+        game_phase -= gamephase_influence[piece];
     }
+}
 
-    inline void removePiece(Piece piece, Square sq)
-    {
-        piecesBB[piece] &= ~(1ULL << sq);
-        board[sq] = None;
+inline void Board::placePiece(Piece piece, Square sq)
+{
+    piecesBB[piece] |= (1ULL << sq);
+    board[sq] = piece;
+    if constexpr (EVAL_TYPE == Incremental_PST) {
         midgame_PST += midgame_table[piece][sq];
+        endgame_PST += endgame_table[piece][sq];
+        game_phase += gamephase_influence[piece];
     }
+}
 
-    inline void placePiece(Piece piece, Square sq)
-    {
-        piecesBB[piece] |= (1ULL << sq);
-        board[sq] = piece;
-    }
+inline void Board::movePiece(Piece piece, Square fromSq, Square toSq) {
+    removePiece(piece, fromSq);
+    placePiece(piece, toSq);
+}
 
-    template<Eval_Type type>
-    int eval();
+template<>
+int Board::eval<Board::Full_PST>()
+{
+    int midgame = 0;
+    int endgame = 0;
+    int gamePhase = 0;
 
-    template<>
-    int eval<Full_PST>()
-    {
-        int midgame = 0;
-        int endgame = 0;
-        int gamePhase = 0;
-
-        for (Square square = SQ_A1; square <= SQ_H8; ++square) {
-            Piece piece = board[square];
-            if (piece != None) {
-                midgame += midgame_table[piece][square];
-                endgame += endgame_table[piece][square];
-                gamePhase += gamephase_influence[piece];
-            }
+    for (Square square = SQ_A1; square <= SQ_H8; ++square) {
+        Piece piece = board[square];
+        if (piece != None) {
+            midgame += midgame_table[piece][square];
+            endgame += endgame_table[piece][square];
+            gamePhase += gamephase_influence[piece];
         }
-
-        int total_weight = 24;
-        int midgame_weight = std::min(gamePhase, total_weight);
-        int endgame_weight = total_weight - midgame_weight;
-        int interpolated = (midgame * midgame_weight + endgame * endgame_weight) / total_weight;
-        return (sideToMove == Chess::White ? 1 : -1) * interpolated;
     }
 
-    template<>
-    int eval<Incremental_PST>() {
-        int total_weight = 24;
-        int midgame_weight = std::min(game_phase, total_weight);
-        int endgame_weight = total_weight - midgame_weight;
-        int interpolated = (midgame_PST * midgame_weight + endgame_PST * endgame_weight) / total_weight;
-        return (sideToMove == Chess::White ? 1 : -1) * interpolated;
-    }
+    int total_weight = 24;
+    int midgame_weight = std::min(gamePhase, total_weight);
+    int endgame_weight = total_weight - midgame_weight;
+    int interpolated = (midgame * midgame_weight + endgame * endgame_weight) / total_weight;
+    return (sideToMove == Chess::White ? 1 : -1) * interpolated;
+}
 
-    template<>
-    int eval<Random>() {
-        return 0;
-    }
+template<>
+int Board::eval<Board::Incremental_PST>() {
+    int total_weight = 24;
+    int midgame_weight = std::min(game_phase, total_weight);
+    int endgame_weight = total_weight - midgame_weight;
+    int interpolated = (midgame_PST * midgame_weight + endgame_PST * endgame_weight) / total_weight;
+    int eval = (sideToMove == Chess::White ? 1 : -1) * interpolated;
+    assert(eval == this->eval<Full_PST>());
+    return eval;
+}
 
-    int eval() {
-        return eval<EVAL_TYPE>();
-    }
-};
+template<>
+int Board::eval<Board::Random>() {
+    static std::mt19937 rng(3);
+    static std::uniform_int_distribution<int16_t> uniform(SHRT_MIN, SHRT_MAX);
+    return uniform(rng);
+}
+
+template<>
+int Board::eval<Board::Pseudo_random>() {
+    int32_t eval = (hashKey & ((1 << 16) - 1)) - (1 << 15);
+    return eval;
+}
+
+int Board::eval() {
+    return eval<EVAL_TYPE>();
+}
