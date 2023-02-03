@@ -6,14 +6,14 @@ template<bool Q_SEARCH>
 class Search {
 
 private:
-    Eval_Board board;
+    Board board;
     uint64_t nodes = 0;
 
 public:
-    explicit Search(Eval_Board& board) : board(board) {
+    explicit Search(Board& board) : board(board) {
     }
 
-    int q_search(int alpha, int beta) {
+    int q_search(int alpha, int beta, int depth = 0) {
         int q_eval = board.eval();
         nodes++;
         if constexpr (!Q_SEARCH) {
@@ -31,7 +31,7 @@ public:
         Movegen::legalmoves<CAPTURE>(board, captures);
         for (auto& capture : captures) {
             board.makeMove(capture.move);
-            int inner_eval = -q_search(-beta, -alpha);
+            int inner_eval = -q_search(-beta, -alpha, depth + 1);
             board.unmakeMove(capture.move);
             if (inner_eval > q_eval) {
                 q_eval = inner_eval;
