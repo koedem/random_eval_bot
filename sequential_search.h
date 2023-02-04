@@ -13,7 +13,7 @@ public:
     explicit Search(Board& board) : board(board) {
     }
 
-    int q_search(int alpha, int beta, int depth = 0) {
+    int q_search(int alpha, int beta) {
         int q_eval = board.eval();
         nodes++;
         if constexpr (!Q_SEARCH) {
@@ -27,11 +27,11 @@ public:
             alpha = q_eval;
         }
 
-        static std::vector<Movelist> captures(255);
-        Movegen::legalmoves<CAPTURE>(board, captures[depth]);
-        for (auto& capture : captures[depth]) {
+        Movelist captures;
+        Movegen::legalmoves<CAPTURE>(board, captures);
+        for (auto& capture : captures) {
             board.makeMove(capture.move);
-            int inner_eval = -q_search(-beta, -alpha, depth + 1);
+            int inner_eval = -q_search(-beta, -alpha);
             board.unmakeMove(capture.move);
             if (inner_eval > q_eval) {
                 q_eval = inner_eval;
@@ -49,10 +49,10 @@ public:
 
     int nega_max(int alpha, int beta, int depth) {
         int eval = INT32_MIN;
-        static std::vector<Movelist> moves(255);
-        Movegen::legalmoves<ALL>(board, moves[depth]);
+        Movelist moves;
+        Movegen::legalmoves<ALL>(board, moves);
 
-        for (auto& move : moves[depth]) {
+        for (auto& move : moves) {
             board.makeMove(move.move);
             int inner_eval;
             if (depth > 1) {
