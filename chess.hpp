@@ -211,15 +211,41 @@ int Board::eval<Board::Incremental_PST>() {
 
 template<>
 int Board::eval<Board::Random>() {
-    static std::mt19937 rng(3);
+    static std::mt19937 rng(12345);
     static std::uniform_int_distribution<int16_t> uniform(SHRT_MIN, SHRT_MAX);
     return uniform(rng);
 }
 
+int seed = 0;
+long murmur64(long h) {
+    h += seed;
+    h ^= h >> 33;
+    h *= 0xff51afd7ed558ccdL;
+    h ^= h >> 33;
+    h *= 0xc4ceb9fe1a85ec53L;
+    h ^= h >> 33;
+    return h;
+}
+
+void change_seed() {
+    seed++;
+}
+
+/**
+ * A bunch of testing went into this pseudo random evaluation function. The chess board provides a hash key, the Zobrist
+ * key that is used in the actual hash function. So the natural pseudo random evaluation would be taking simply the low
+ * 16 bits of that random key, or possibly some other set of 16 random bits. As it turns out this leads to seemingly
+ * poor randomness in the sense that the resulting search results to not strongly resemble those of the truly random
+ * evaluation.
+ * However, adding another layer, a fast bit mixing function in-between does lead to better randomness under that made
+ * up metric, i.e. the search results do look similar to that of the random evaluation function. Furthermore, it allows
+ * for an easy addition of a seed into the hash function, allowing us to easily switch between different sets of pseudo
+ * random evaluations.
+ * @return
+ */
 template<>
 int Board::eval<Board::Pseudo_random>() {
-    int32_t eval = (hashKey & ((1 << 16) - 1)) - (1 << 15);
-    return eval;
+    return (int16_t) murmur64(hashKey);
 }
 
 int Board::eval() {
