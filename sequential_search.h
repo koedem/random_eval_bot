@@ -49,10 +49,10 @@ public:
 
     int nega_max(int alpha, int beta, int depth) {
         int eval = INT32_MIN;
-        Movelist moves;
-        Movegen::legalmoves<ALL>(board, moves);
+        static std::vector<Movelist> moves(255);
+        Movegen::legalmoves<ALL>(board, moves[depth]);
 
-        for (auto& move : moves) {
+        for (auto& move : moves[depth]) {
             board.makeMove(move.move);
             int inner_eval;
             if (depth > 1) {
@@ -76,13 +76,15 @@ public:
         return eval;
     }
 
-    int root_max(int alpha, int beta, int depth) {
+    template<class Search_Result>
+    Search_Result root_max(int alpha, int beta, int depth, Search_Result& result) {
         auto start = std::chrono::high_resolution_clock::now();
         nodes = 0;
-        if (depth == 0) {
+        assert(depth > 0);
+        /*if (depth == 0) {
             nodes++;
             return q_search(-beta, -alpha);
-        }
+        }*/
         int eval = INT32_MIN;
         Movelist moves;
         Movegen::legalmoves<ALL>(board, moves);
@@ -112,8 +114,11 @@ public:
         }
         auto end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> duration = end - start;
-        std::cout << "Depth " << depth << ": " << convertMoveToUci(best_move) << " eval " << eval << " nodes " << nodes
-            << " time " << duration.count() << " nps " << (nodes / duration.count()) << std::endl;
-        return eval;
+        result.nodes = nodes;
+        result.duration = duration.count();
+        result.move = best_move;
+        result.eval = eval;
+        result.depth = depth;
+        return result;
     }
 };
