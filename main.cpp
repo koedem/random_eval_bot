@@ -32,8 +32,8 @@ int main() {
             Search_Result result;
             search.root_max<Search_Result, true>(INT32_MIN / 2, INT32_MAX / 2, depth, result);
             result.print_table(iteration);
-            search.root_max<Search_Result, false>(INT32_MIN / 2, INT32_MAX / 2, depth, result);
-            result.print_table(iteration);
+            //search.root_max<Search_Result, false>(INT32_MIN / 2, INT32_MAX / 2, depth, result);
+            //result.print_table(iteration);
         }
         change_seed();
     }

@@ -79,6 +79,24 @@ public:
 
     int null_window_search(int beta, int depth) {
         int eval = INT32_MIN / 2;
+        if (tt.contains(board.hashKey, depth)) {
+            TT_Info tt_entry = tt.at(board.hashKey, depth);
+            assert(tt_entry.depth == depth);
+            if (tt_entry.type == EXACT) {
+                return tt_entry.eval;
+            }
+            if (tt_entry.type == UPPER_BOUND) {
+                if (tt_entry.eval < beta) {
+                    return tt_entry.eval;
+                }
+            } else if (tt_entry.type == LOWER_BOUND) {
+                if (tt_entry.eval >= beta) {
+                    return tt_entry.eval;
+                }
+            }
+        }
+
+        TT_Info entry{eval, NO_MOVE, (int8_t) depth, UPPER_BOUND};
         Movelist moves;
         Movegen::legalmoves<ALL>(board, moves);
 
@@ -95,15 +113,38 @@ public:
             if (inner_eval > eval) {
                 eval = inner_eval;
                 if (eval >= beta) {
+                    entry.move = move.move;
+                    entry.eval = eval;
+                    entry.type = LOWER_BOUND;
+                    tt.emplace(board.hashKey, entry, depth);
                     break;
                 }
             }
         }
+        entry.eval = eval;
+        tt.emplace(board.hashKey, entry, depth);
         return eval;
     }
 
     int pv_search(int alpha, int beta, int depth) {
         int eval = INT32_MIN / 2;
+        if (tt.contains(board.hashKey, depth)) {
+            TT_Info tt_entry = tt.at(board.hashKey, depth);
+            assert(tt_entry.depth == depth);
+            if (tt_entry.type == EXACT) {
+                return tt_entry.eval;
+            }
+            if (tt_entry.type == UPPER_BOUND) {
+                beta = std::min(beta, tt_entry.eval);
+            } else if (tt_entry.type == LOWER_BOUND) {
+                alpha = std::max(alpha, tt_entry.eval);
+            }
+            if (alpha >= beta) { // Our window is empty due to the TT hit
+                return tt_entry.eval;
+            }
+        }
+
+        TT_Info entry{eval, NO_MOVE, (int8_t) depth, UPPER_BOUND};
         Movelist moves;
         Movegen::legalmoves<ALL>(board, moves);
 
@@ -122,14 +163,22 @@ public:
             if (inner_eval > eval) {
                 eval = inner_eval;
                 if (eval >= beta) {
+                    entry.move = move.move;
+                    entry.eval = eval;
+                    entry.type = LOWER_BOUND;
+                    tt.emplace(board.hashKey, entry, depth);
                     break;
                 }
                 if (eval > alpha) {
                     alpha = eval;
+                    entry.type = EXACT; // We raised alpha, so it's no longer a lower bound, either exact or upper bound
+                    entry.move = move.move; // If it stays this way, this is the best move
                 }
 
             }
         }
+        entry.eval = eval;
+        tt.emplace(board.hashKey, entry, depth);
         return eval;
     }
 
