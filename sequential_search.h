@@ -76,7 +76,7 @@ public:
     }
 
     int null_window_search(int beta, int depth) {
-        int eval = INT32_MIN;
+        int eval = INT32_MIN / 2;
         Movelist moves;
         Movegen::legalmoves<ALL>(board, moves);
 
@@ -101,7 +101,7 @@ public:
     }
 
     int pv_search(int alpha, int beta, int depth) {
-        int eval = INT32_MIN;
+        int eval = INT32_MIN / 2;
         Movelist moves;
         Movegen::legalmoves<ALL>(board, moves);
 
@@ -132,7 +132,7 @@ public:
     }
 
     int nega_max(int alpha, int beta, int depth) {
-        int eval = INT32_MIN;
+        int eval = INT32_MIN / 2;
         Movelist moves;
         Movegen::legalmoves<ALL>(board, moves);
 
@@ -169,7 +169,7 @@ public:
             nodes++;
             return q_search(-beta, -alpha);
         }*/
-        int eval = INT32_MIN;
+        int eval = INT32_MIN / 2;
         Movelist moves;
         Movegen::legalmoves<ALL>(board, moves);
         Move best_move = NO_MOVE;
