@@ -17,7 +17,8 @@ struct Search_Result {
     }
 
     void print_table(int iteration) {
-        std::cout << iteration << "\t" << depth << "\t" << duration << "\t" << (nodes / duration) << "\t" << eval << "\t" << nodes << std::endl;
+        std::cout << iteration << "\t" << depth << "\t" << duration << "\t" << (nodes / duration) << "\t" << eval
+        << "\t" << nodes << "\t" << convertMoveToUci(move) << std::endl;
     }
 };
 
@@ -27,11 +28,14 @@ int main() {
     Board board;
     Search<true> search(board);
     for (int iteration = 0; iteration < 10; iteration++) {
-        for (int depth = 1; depth < 9; depth++) {
+        for (int depth = 1; depth < 11; depth++) {
             Search_Result result;
-            search.root_max(INT32_MIN / 2, INT32_MAX / 2, depth, result);
+            search.root_max<Search_Result, true>(INT32_MIN / 2, INT32_MAX / 2, depth, result);
+            result.print_table(iteration);
+            search.root_max<Search_Result, false>(INT32_MIN / 2, INT32_MAX / 2, depth, result);
             result.print_table(iteration);
         }
+        change_seed();
     }
     return 0;
 }
