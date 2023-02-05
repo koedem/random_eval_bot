@@ -79,6 +79,7 @@ public:
 
     int null_window_search(int beta, int depth) {
         int eval = INT32_MIN / 2;
+        Move tt_move = NO_MOVE;
         if (tt.contains(board.hashKey, depth)) {
             TT_Info tt_entry = tt.at(board.hashKey, depth);
             assert(tt_entry.depth == depth);
@@ -94,12 +95,23 @@ public:
                     return tt_entry.eval;
                 }
             }
+            tt_move = tt_entry.move;
+        }
+        if (tt_move == NO_MOVE) { // If we didn't find a TT move, try from one depth earlier instead
+            if (tt.contains(board.hashKey, depth - 1)) {
+                TT_Info tt_entry = tt.at(board.hashKey, depth - 1);
+                assert(tt_entry.depth == depth - 1);
+                tt_move = tt_entry.move;
+            }
         }
 
         TT_Info entry{eval, NO_MOVE, (int8_t) depth, UPPER_BOUND};
         Movelist moves;
         Movegen::legalmoves<ALL>(board, moves);
-
+        int tt_move_index = moves.find(tt_move);
+        if (tt_move_index > 0) {
+            std::swap(moves[0], moves[tt_move_index]); // Search the TT move first
+        }
         for (auto& move : moves) {
             board.makeMove(move.move);
             int inner_eval;
@@ -112,8 +124,8 @@ public:
 
             if (inner_eval > eval) {
                 eval = inner_eval;
+                entry.move = move.move;
                 if (eval >= beta) {
-                    entry.move = move.move;
                     entry.eval = eval;
                     entry.type = LOWER_BOUND;
                     tt.emplace(board.hashKey, entry, depth);
@@ -128,6 +140,7 @@ public:
 
     int pv_search(int alpha, int beta, int depth) {
         int eval = INT32_MIN / 2;
+        Move tt_move = NO_MOVE;
         if (tt.contains(board.hashKey, depth)) {
             TT_Info tt_entry = tt.at(board.hashKey, depth);
             assert(tt_entry.depth == depth);
@@ -142,11 +155,23 @@ public:
             if (alpha >= beta) { // Our window is empty due to the TT hit
                 return tt_entry.eval;
             }
+            tt_move = tt_entry.move;
+        }
+        if (tt_move == NO_MOVE) { // If we didn't find a TT move, try from one depth earlier instead
+            if (tt.contains(board.hashKey, depth - 1)) {
+                TT_Info tt_entry = tt.at(board.hashKey, depth - 1);
+                assert(tt_entry.depth == depth - 1);
+                tt_move = tt_entry.move;
+            }
         }
 
         TT_Info entry{eval, NO_MOVE, (int8_t) depth, UPPER_BOUND};
         Movelist moves;
         Movegen::legalmoves<ALL>(board, moves);
+        int tt_move_index = moves.find(tt_move);
+        if (tt_move_index > 0) {
+            std::swap(moves[0], moves[tt_move_index]); // Search the TT move first
+        }
 
         bool search_full_window = true;
         for (auto& move : moves) {
@@ -162,8 +187,8 @@ public:
 
             if (inner_eval > eval) {
                 eval = inner_eval;
+                entry.move = move.move; // If it stays this way, this is the best move
                 if (eval >= beta) {
-                    entry.move = move.move;
                     entry.eval = eval;
                     entry.type = LOWER_BOUND;
                     tt.emplace(board.hashKey, entry, depth);
@@ -172,7 +197,6 @@ public:
                 if (eval > alpha) {
                     alpha = eval;
                     entry.type = EXACT; // We raised alpha, so it's no longer a lower bound, either exact or upper bound
-                    entry.move = move.move; // If it stays this way, this is the best move
                 }
 
             }
