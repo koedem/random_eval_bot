@@ -44,16 +44,19 @@ public:
     }
 
     void print_size() const {
-        uint64_t num_elements = 0;
+        uint64_t num_elements = 0, exact_entries = 0;
         for (const Bucket& bucket : table) {
             for (auto & entry : bucket.entries) {
                 if (entry.key != 0) {
                     num_elements++;
+                    if (entry.value.type == EXACT) {
+                        exact_entries++;
+                    }
                 }
             }
         }
-        std::cout << "Table elements: " << num_elements << ", missed writes: " << missed_writes << " bucket count "
-                  << table.size() << ", bucket capacity: " << table.capacity() << std::endl;
+        std::cout << "Table elements: " << num_elements << ", exact entries: " << exact_entries << ", missed writes: "
+        << missed_writes << " bucket count " << table.size() << ", bucket capacity: " << table.capacity() << std::endl;
     }
 
     /*void emplace(uint64_t key, uint64_t value) {
@@ -90,6 +93,7 @@ public:
                 swapped = true;
             }
         }
+        missed_writes += swapped ? 0 : 1;
         /*if (!swapped) {
             missed_writes++;
             auto & entry = entries[2 + (missed_writes & 1)];
