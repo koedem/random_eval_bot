@@ -3,9 +3,8 @@
 #include <cstdint>
 #include <iostream>
 #include <vector>
+#include "compile_time_constants.h"
 #include "chess-library/src/chess.hpp"
-
-constexpr bool use_tt = true;
 
 enum Bound_Type : uint8_t {
     UPPER_BOUND, LOWER_BOUND, EXACT
@@ -30,8 +29,6 @@ struct TT_Info {
 class Transposition_Table {
 
 private:
-    static constexpr uint32_t entries_per_bucket = 4;
-
     struct Entry {
         uint64_t key = 0;
         TT_Info value = {};
@@ -41,10 +38,9 @@ private:
         Entry entries[entries_per_bucket];
     };
 
-
-
 public:
-    Transposition_Table() : table(size) {
+    explicit Transposition_Table(uint64_t size_in_mb = 8192) :
+                size((1 << 20) * std::bit_floor(size_in_mb) / sizeof(Bucket)), mask(size - 1), table(size) {
     }
 
     void print_size() const {
@@ -158,8 +154,8 @@ public:
      * look up an entry of a certain depth and then the entry of the previous depth, by subtracting depth we make sure
      * that the second entry is the next entry in the vector, i.e. the next cache line.
      */
-    static inline uint64_t pos(uint64_t key, int32_t depth) {
-        return (key - depth) % size; // this is a compile-time constant and gets compiled to either a bit and or an efficient version of this
+    [[nodiscard]] inline uint64_t pos(uint64_t key, int32_t depth) const {
+        return (key - depth) & mask; // this is a compile-time constant and gets compiled to either a bit and or an efficient version of this
     }
 
     void clear() {
@@ -168,7 +164,8 @@ public:
     }
 
 private:
-    static constexpr uint32_t size = 1 << 27;
+    uint64_t size;
+    uint64_t mask;
     std::vector<Bucket> table;
 
     uint64_t missed_writes = 0;
