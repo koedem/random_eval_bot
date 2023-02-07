@@ -191,7 +191,7 @@ public:
                 if (eval >= beta) {
                     entry.eval = eval;
                     entry.type = LOWER_BOUND;
-                    tt.emplace(board.hashKey, entry, depth);
+                    tt.emplace(board.hashKey, entry, depth); // TODO
                     break;
                 }
                 if (eval > alpha) {
@@ -265,13 +265,26 @@ public:
         auto start = std::chrono::high_resolution_clock::now();
         nodes = 0;
         assert(depth > 0);
-        /*if (depth == 0) {
-            nodes++;
-            return q_search(-beta, -alpha);
-        }*/
         int eval = INT32_MIN / 2;
+        Move tt_move = NO_MOVE;
+
+        /*
+         * TODO for parallel search, check for current depth too in case another thread outdid us; probably not relevant
+         * Also obviously can't happen in sequential search.
+         */
+        if (tt.contains(board.hashKey, depth - 1)) { // Try to find the best move from the previous iteration
+            TT_Info tt_entry = tt.at(board.hashKey, depth - 1);
+            assert(tt_entry.depth == depth - 1);
+            tt_move = tt_entry.move;
+        }
+
         Movelist moves;
         Movegen::legalmoves<ALL>(board, moves);
+        int tt_move_index = moves.find(tt_move);
+        if (tt_move_index > 0) {
+            std::swap(moves[0], moves[tt_move_index]); // Search the TT move first
+        }
+
         Move best_move = NO_MOVE;
 
         bool search_full_window = true;
@@ -288,8 +301,8 @@ public:
                 //std::cout << convertMoveToUci(move) << " eval " << inner_eval << " nodes " << nodes << std::endl;
                 search_full_window = false;
             }
-            //std::cout << convertMoveToUci(move) << " ";
-            //tt.print_pv(board, depth - 1);
+            std::cout << convertMoveToUci(move) << " ";
+            tt.print_pv(board, depth - 1);
             board.unmakeMove(move);
 
             if (inner_eval > eval) {
@@ -303,6 +316,8 @@ public:
                 }
             }
         }
+        tt.emplace(board.hashKey, {eval, best_move, (int8_t) depth, EXACT}, depth);
+
         auto end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> duration = end - start;
         result.nodes = nodes;
