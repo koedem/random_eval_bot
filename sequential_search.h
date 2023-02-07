@@ -124,7 +124,7 @@ public:
             return alpha; // TT entry value is put here
         }
 
-        TT_Info entry{eval, NO_MOVE, (int8_t) depth, UPPER_BOUND};
+        TT_Info entry{eval, tt_move, (int8_t) depth, UPPER_BOUND}; // If we don't find a move, keep the old TT move
         Movelist moves;
         Movegen::legalmoves<ALL>(board, moves);
         int tt_move_index = moves.find(tt_move);
@@ -162,7 +162,7 @@ public:
             return alpha; // TT entry value is put here
         }
 
-        TT_Info entry{eval, NO_MOVE, (int8_t) depth, UPPER_BOUND};
+        TT_Info entry{eval, tt_move, (int8_t) depth, UPPER_BOUND}; // If we don't find a move, keep the old TT move
         Movelist moves;
         Movegen::legalmoves<ALL>(board, moves);
         int tt_move_index = moves.find(tt_move);
@@ -208,7 +208,7 @@ public:
             return alpha; // TT entry value is put here
         }
 
-        TT_Info entry{eval, NO_MOVE, (int8_t) depth, UPPER_BOUND};
+        TT_Info entry{eval, tt_move, (int8_t) depth, UPPER_BOUND}; // If we don't find a move, keep the old TT move
         Movelist moves;
         Movegen::legalmoves<ALL>(board, moves);
 
@@ -272,11 +272,14 @@ public:
                 inner_eval = -nega_max(-beta, -alpha, depth - 1);
             } else if (search_full_window || (inner_eval = -null_window_search(-alpha, depth - 1)) > alpha){
                 inner_eval = -pv_search(-beta, -alpha, depth - 1);
-                //std::cout << convertMoveToUci(move) << " eval " << inner_eval << " nodes " << nodes << std::endl;
                 search_full_window = false;
             }
-            std::cout << convertMoveToUci(move) << " ";
-            tt.print_pv(board, depth - 1);
+            if constexpr (DEBUG_OUTPUTS) {
+                std::cout << convertMoveToUci(move) << " eval " << inner_eval << " nodes " << nodes << std::endl;
+                std::cout << convertMoveToUci(move) << " ";
+                tt.print_pv(board, depth - 1);
+                tt.print_size();
+            }
             board.unmakeMove(move);
 
             if (inner_eval > eval) {
