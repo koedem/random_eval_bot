@@ -126,9 +126,7 @@ public:
                 eval = inner_eval;
                 entry.move = move.move;
                 if (eval >= beta) {
-                    entry.eval = eval;
                     entry.type = LOWER_BOUND;
-                    tt.emplace(board.hashKey, entry, depth);
                     break;
                 }
             }
@@ -189,9 +187,7 @@ public:
                 eval = inner_eval;
                 entry.move = move.move; // If it stays this way, this is the best move
                 if (eval >= beta) {
-                    entry.eval = eval;
                     entry.type = LOWER_BOUND;
-                    tt.emplace(board.hashKey, entry, depth); // TODO
                     break;
                 }
                 if (eval > alpha) {
@@ -240,17 +236,14 @@ public:
 
             if (inner_eval > eval) {
                 eval = inner_eval;
+                entry.move = move.move; // If it stays this way, this is the best move
                 if (eval >= beta) {
-                    entry.move = move.move;
-                    entry.eval = eval;
                     entry.type = LOWER_BOUND;
-                    tt.emplace(board.hashKey, entry, depth);
                     break;
                 }
                 if (eval > alpha) {
                     alpha = eval;
                     entry.type = EXACT; // We raised alpha, so it's no longer a lower bound, either exact or upper bound
-                    entry.move = move.move; // If it stays this way, this is the best move
                 }
 
             }
