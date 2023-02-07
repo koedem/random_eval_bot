@@ -26,13 +26,14 @@ int main() {
     init_tables();
 
     Board board;
-    Transposition_Table table;
-    Search<true> search(board, table);
+    Transposition_Table<DEPTH_FIRST> table;
+    Search<true, DEPTH_FIRST> search(board, table);
     for (int iteration = 0; iteration < 10; iteration++) {
-        for (int depth = 1; depth < 10; depth++) {
+        for (int depth = 1; depth < 14; depth++) {
             Search_Result result;
             search.root_max<Search_Result, true>(INT32_MIN / 2, INT32_MAX / 2, depth, result);
             result.print_table(iteration);
+            table.print_size();
             //search.root_max<Search_Result, false>(INT32_MIN / 2, INT32_MAX / 2, depth, result);
             //result.print_table(iteration);
         }

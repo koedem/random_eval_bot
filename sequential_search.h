@@ -3,13 +3,13 @@
 #include "chess.hpp"
 #include "transposition_table.h"
 
-template<bool Q_SEARCH>
+template<bool Q_SEARCH, TT_Strategy strategy>
 class Search {
 
 private:
     Board board;
     uint64_t nodes = 0;
-    Transposition_Table& tt;
+    Transposition_Table<strategy>& tt;
 
     /**
      *
@@ -51,7 +51,7 @@ private:
     }
 
 public:
-    explicit Search(Board& board, Transposition_Table& table) : board(board), tt(table) {
+    explicit Search(Board& board, Transposition_Table<strategy>& table) : board(board), tt(table) {
     }
 
     int q_search(int alpha, int beta) {

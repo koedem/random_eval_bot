@@ -10,6 +10,10 @@ enum Bound_Type : uint8_t {
     UPPER_BOUND, LOWER_BOUND, EXACT
 };
 
+enum TT_Strategy {
+    DEPTH_FIRST, RANDOM_REPLACE, REPLACE_LAST_ENTRY, TWO_TWO_SPLIT
+};
+
 struct TT_Info {
     int32_t eval;
     Chess::Move move;
@@ -26,6 +30,7 @@ struct TT_Info {
     }
 };
 
+template<TT_Strategy strategy>
 class Transposition_Table {
 
 private:
@@ -56,11 +61,44 @@ public:
             }
         }
         std::cout << "Table elements: " << num_elements << ", exact entries: " << exact_entries << ", missed writes: "
-        << missed_writes << " bucket count " << table.size() << ", bucket capacity: " << table.capacity() << std::endl;
+                  << writes << " bucket count " << table.size() << ", bucket capacity: " << table.capacity() << std::endl;
     }
 
-    /*void emplace(uint64_t key, uint64_t value) {
-        auto & entries = table[pos(key)].entries;
+    template<TT_Strategy strat>
+    void replace(Entry entries[entries_per_bucket], uint64_t key, TT_Info value);
+
+    template<>
+    void replace<RANDOM_REPLACE>(Entry entries[entries_per_bucket], uint64_t key, TT_Info value) {
+        for (int i = 0; i < 4; i++) {
+            auto & entry = entries[i];
+            if (entry.key == 0) {
+                entry.value = value;
+                entry.key = key;
+                return;
+            }
+        }
+        entries[writes % entries_per_bucket].key = key; // Modulo but by a compile-time constant so this should be optimized
+        entries[writes % entries_per_bucket].value = value; // Missed writes is basically random across different buckets
+    }
+
+    template<>
+    void replace<TWO_TWO_SPLIT>(Entry entries[entries_per_bucket], uint64_t key, TT_Info value) {
+        for (int i = 0; i < 4; i++) {
+            auto & entry = entries[i];
+            if (entry.value < value) { // last slot is always replace
+                std::swap(entry.value, value);
+                std::swap(entry.key, key);
+            }
+        }
+        if (key != 0) { // So we didn't just overwrite an empty entry
+            auto & entry = entries[2 + (writes & 1)];
+            std::swap(entry.value, value);
+            std::swap(entry.key, key);
+        }
+    }
+
+    template<>
+    void replace<REPLACE_LAST_ENTRY>(Entry entries[entries_per_bucket], uint64_t key, TT_Info value) {
         for (int i = 0; i < 4; i++) {
             auto & entry = entries[i];
             if (entry.value < value || i == 3) { // last slot is always replace
@@ -68,7 +106,18 @@ public:
                 std::swap(entry.key, key);
             }
         }
-    }*/
+    }
+
+    template<>
+    void replace<DEPTH_FIRST>(Entry entries[entries_per_bucket], uint64_t key, TT_Info value) {
+        for (int i = 0; i < 4; i++) {
+            auto & entry = entries[i];
+            if (entry.value < value) {
+                std::swap(entry.value, value);
+                std::swap(entry.key, key);
+            }
+        }
+    }
 
     void emplace(uint64_t key, TT_Info value, int32_t depth) {
         if constexpr (!use_tt) {
@@ -83,36 +132,9 @@ public:
                 return;
             }
         }
-
-        bool swapped = false;
-        for (int i = 0; i < 4; i++) {
-            auto & entry = entries[i];
-            if (entry.value < value) {
-                std::swap(entry.value, value);
-                std::swap(entry.key, key);
-                swapped = true;
-            }
-        }
-        missed_writes += swapped ? 0 : 1;
-        /*if (!swapped) {
-            missed_writes++;
-            auto & entry = entries[2 + (missed_writes & 1)];
-            std::swap(entry.value, value);
-            std::swap(entry.key, key);
-        }*/
+        writes++;
+        replace<strategy>(entries, key, value); // Otherwise try to replace an existing entry
     }
-
-    /*void emplace(uint64_t key, uint64_t value) {
-        auto & entries = table[pos(key)].entries;
-        for (int i = 0; i < 4; i++) {
-            auto & entry = entries[i];
-            if (entry.value < value) {
-                std::swap(entry.value, value);
-                std::swap(entry.key, key);
-            }
-        }
-        missed_writes += value == 0 ? 0 : 1;
-    }*/
 
     [[nodiscard]] TT_Info at(uint64_t key, int32_t depth) const {
         for (auto& entry : table[pos(key, depth)].entries) {
@@ -163,7 +185,7 @@ public:
     }
 
     void clear() {
-        missed_writes = 0;
+        writes = 0;
         std::fill(table.begin(), table.end(), Bucket());
     }
 
@@ -172,5 +194,5 @@ private:
     uint64_t mask;
     std::vector<Bucket> table;
 
-    uint64_t missed_writes = 0;
+    uint64_t writes = 0;
 };
