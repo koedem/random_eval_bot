@@ -60,7 +60,7 @@ public:
                 }
             }
         }
-        std::cout << "Table elements: " << num_elements << ", exact entries: " << exact_entries << ", missed writes: "
+        std::cout << "Table elements: " << num_elements << ", exact entries: " << exact_entries << ", total writes: "
                   << writes << " bucket count " << table.size() << ", bucket capacity: " << table.capacity() << std::endl;
     }
 
@@ -91,7 +91,7 @@ public:
             }
         }
         if (key != 0) { // So we didn't just overwrite an empty entry
-            auto & entry = entries[2 + (writes & 1)];
+            auto & entry = entries[2 + (writes & 1)]; // Writes & 1 "randomly" chooses the 3rd or 4th entry to overwrite
             std::swap(entry.value, value);
             std::swap(entry.key, key);
         }
@@ -132,10 +132,13 @@ public:
                 return;
             }
         }
-        writes++;
-        replace<strategy>(entries, key, value); // Otherwise try to replace an existing entry
+        writes++; // Entry does not exist yet so we create it
+        replace<strategy>(entries, key, value); // Try to replace an existing (possibly empty) entry.
     }
 
+    /**
+     * This should ideally only be called after making sure the entry exists via the contains method.
+     */
     [[nodiscard]] TT_Info at(uint64_t key, int32_t depth) const {
         for (auto& entry : table[pos(key, depth)].entries) {
             if (entry.key == key) {
@@ -145,7 +148,23 @@ public:
         return TT_Info{};
     }
 
-    bool contains(uint64_t key, int32_t depth) {
+    /**
+     * Returns true and puts the value into the third parameter reference, if such an entry exists, and false otherwise.
+     */
+    [[nodiscard]] bool get_if_exists(uint64_t key, int32_t depth, TT_Info& info) const {
+        if constexpr (!use_tt) {
+            return false;
+        }
+        for (auto& entry : table[pos(key, depth)].entries) {
+            if (entry.key == key) {
+                info = entry.value;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    [[nodiscard]] bool contains(uint64_t key, int32_t depth) const {
         if constexpr (!use_tt) {
             return false;
         }
@@ -160,8 +179,9 @@ public:
     void print_pv(Board& board, int depth) {
         Board copy(board);
         while (depth > 0) {
-            if (contains(copy.hashKey, depth)) {
-                Move move = at(copy.hashKey, depth).move;
+            TT_Info info{};
+            if (get_if_exists(copy.hashKey, depth, info)) {
+                Move move = info.move;
                 std::cout << convertMoveToUci(move) << " ";
                 copy.makeMove(move);
                 depth--;

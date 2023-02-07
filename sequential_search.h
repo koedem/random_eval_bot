@@ -21,8 +21,8 @@ private:
      * stored in alpha, can be returned.
      */
     bool tt_probe(Move& move, int& alpha, int& beta, int depth) {
-        if (tt.contains(board.hashKey, depth)) {
-            TT_Info tt_entry = tt.at(board.hashKey, depth);
+        TT_Info tt_entry{};
+        if (tt.get_if_exists(board.hashKey, depth, tt_entry)) {
             assert(tt_entry.depth == depth);
             if (tt_entry.type == EXACT) {
                 alpha = tt_entry.eval;
@@ -41,8 +41,7 @@ private:
             move = tt_entry.move;
         }
         if (move == NO_MOVE) { // If we didn't find a TT move, try from one depth earlier instead
-            if (tt.contains(board.hashKey, depth - 1)) {
-                TT_Info tt_entry = tt.at(board.hashKey, depth - 1);
+            if (tt.get_if_exists(board.hashKey, depth - 1, tt_entry)) {
                 assert(tt_entry.depth == depth - 1);
                 move = tt_entry.move;
             }
