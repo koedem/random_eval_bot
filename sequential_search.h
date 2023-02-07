@@ -11,6 +11,45 @@ private:
     uint64_t nodes = 0;
     Transposition_Table& tt;
 
+    /**
+     *
+     * @param move Should be NO_Move, will contain the TT move if existing.
+     * @param alpha Bound passed in by reference, will be updated
+     * @param beta  Bound passed in by reference, will be updated
+     * @param depth
+     * @return true if the TT probe produced a cutoff, i.e. the search can be skipped, and the TT entry value,
+     * stored in alpha, can be returned.
+     */
+    bool tt_probe(Move& move, int& alpha, int& beta, int depth) {
+        if (tt.contains(board.hashKey, depth)) {
+            TT_Info tt_entry = tt.at(board.hashKey, depth);
+            assert(tt_entry.depth == depth);
+            if (tt_entry.type == EXACT) {
+                alpha = tt_entry.eval;
+                return true;
+            }
+            if (tt_entry.type == UPPER_BOUND) {
+                beta = std::min(beta, tt_entry.eval);
+            } else if (tt_entry.type == LOWER_BOUND) {
+                alpha = std::max(alpha, tt_entry.eval);
+            }
+
+            if (alpha >= beta) { // Our window is empty due to the TT hit
+                alpha = tt_entry.eval;
+                return true;
+            }
+            move = tt_entry.move;
+        }
+        if (move == NO_MOVE) { // If we didn't find a TT move, try from one depth earlier instead
+            if (tt.contains(board.hashKey, depth - 1)) {
+                TT_Info tt_entry = tt.at(board.hashKey, depth - 1);
+                assert(tt_entry.depth == depth - 1);
+                move = tt_entry.move;
+            }
+        }
+        return false;
+    }
+
 public:
     explicit Search(Board& board, Transposition_Table& table) : board(board), tt(table) {
     }
@@ -80,29 +119,9 @@ public:
     int null_window_search(int beta, int depth) {
         int eval = INT32_MIN / 2;
         Move tt_move = NO_MOVE;
-        if (tt.contains(board.hashKey, depth)) {
-            TT_Info tt_entry = tt.at(board.hashKey, depth);
-            assert(tt_entry.depth == depth);
-            if (tt_entry.type == EXACT) {
-                return tt_entry.eval;
-            }
-            if (tt_entry.type == UPPER_BOUND) {
-                if (tt_entry.eval < beta) {
-                    return tt_entry.eval;
-                }
-            } else if (tt_entry.type == LOWER_BOUND) {
-                if (tt_entry.eval >= beta) {
-                    return tt_entry.eval;
-                }
-            }
-            tt_move = tt_entry.move;
-        }
-        if (tt_move == NO_MOVE) { // If we didn't find a TT move, try from one depth earlier instead
-            if (tt.contains(board.hashKey, depth - 1)) {
-                TT_Info tt_entry = tt.at(board.hashKey, depth - 1);
-                assert(tt_entry.depth == depth - 1);
-                tt_move = tt_entry.move;
-            }
+        int alpha = beta - 1;
+        if (tt_probe(tt_move, alpha, beta, depth)) { // I.e. if cutoff
+            return alpha; // TT entry value is put here
         }
 
         TT_Info entry{eval, NO_MOVE, (int8_t) depth, UPPER_BOUND};
@@ -139,28 +158,8 @@ public:
     int pv_search(int alpha, int beta, int depth) {
         int eval = INT32_MIN / 2;
         Move tt_move = NO_MOVE;
-        if (tt.contains(board.hashKey, depth)) {
-            TT_Info tt_entry = tt.at(board.hashKey, depth);
-            assert(tt_entry.depth == depth);
-            if (tt_entry.type == EXACT) {
-                return tt_entry.eval;
-            }
-            if (tt_entry.type == UPPER_BOUND) {
-                beta = std::min(beta, tt_entry.eval);
-            } else if (tt_entry.type == LOWER_BOUND) {
-                alpha = std::max(alpha, tt_entry.eval);
-            }
-            if (alpha >= beta) { // Our window is empty due to the TT hit
-                return tt_entry.eval;
-            }
-            tt_move = tt_entry.move;
-        }
-        if (tt_move == NO_MOVE) { // If we didn't find a TT move, try from one depth earlier instead
-            if (tt.contains(board.hashKey, depth - 1)) {
-                TT_Info tt_entry = tt.at(board.hashKey, depth - 1);
-                assert(tt_entry.depth == depth - 1);
-                tt_move = tt_entry.move;
-            }
+        if (tt_probe(tt_move, alpha, beta, depth)) { // I.e. if cutoff
+            return alpha; // TT entry value is put here
         }
 
         TT_Info entry{eval, NO_MOVE, (int8_t) depth, UPPER_BOUND};
@@ -204,20 +203,9 @@ public:
 
     int nega_max(int alpha, int beta, int depth) {
         int eval = INT32_MIN / 2;
-        if (tt.contains(board.hashKey, depth)) {
-            TT_Info tt_entry = tt.at(board.hashKey, depth);
-            assert(tt_entry.depth == depth);
-            if (tt_entry.type == EXACT) {
-                return tt_entry.eval;
-            }
-            if (tt_entry.type == UPPER_BOUND) {
-                beta = std::min(beta, tt_entry.eval);
-            } else if (tt_entry.type == LOWER_BOUND) {
-                alpha = std::max(alpha, tt_entry.eval);
-            }
-            if (alpha >= beta) { // Our window is empty due to the TT hit
-                return tt_entry.eval;
-            }
+        Move tt_move = NO_MOVE;
+        if (tt_probe(tt_move, alpha, beta, depth)) { // I.e. if cutoff
+            return alpha; // TT entry value is put here
         }
 
         TT_Info entry{eval, NO_MOVE, (int8_t) depth, UPPER_BOUND};
@@ -260,15 +248,8 @@ public:
         assert(depth > 0);
         int eval = INT32_MIN / 2;
         Move tt_move = NO_MOVE;
-
-        /*
-         * TODO for parallel search, check for current depth too in case another thread outdid us; probably not relevant
-         * Also obviously can't happen in sequential search.
-         */
-        if (tt.contains(board.hashKey, depth - 1)) { // Try to find the best move from the previous iteration
-            TT_Info tt_entry = tt.at(board.hashKey, depth - 1);
-            assert(tt_entry.depth == depth - 1);
-            tt_move = tt_entry.move;
+        if (tt_probe(tt_move, alpha, beta, depth)) { // This can probably never happen but maybe in parallel search
+            return Search_Result{0, 0, tt_move, (int16_t) alpha, (uint16_t) depth};
         }
 
         Movelist moves;
