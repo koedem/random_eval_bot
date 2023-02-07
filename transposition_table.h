@@ -5,6 +5,8 @@
 #include <vector>
 #include "chess-library/src/chess.hpp"
 
+constexpr bool use_tt = true;
+
 enum Bound_Type : uint8_t {
     UPPER_BOUND, LOWER_BOUND, EXACT
 };
@@ -31,8 +33,8 @@ private:
     static constexpr uint32_t entries_per_bucket = 4;
 
     struct Entry {
-        uint64_t key;
-        TT_Info value;
+        uint64_t key = 0;
+        TT_Info value = {};
     };
 
     struct alignas(64) Bucket {
@@ -70,6 +72,9 @@ public:
     }*/
 
     void emplace(uint64_t key, TT_Info value, int32_t depth) {
+        if constexpr (!use_tt) {
+            return;
+        }
         auto & entries = table[pos(key, depth)].entries;
         for (auto & entry : entries) { // Check if the entry already exists
             if (entry.key == key) {
@@ -119,6 +124,9 @@ public:
     }
 
     bool contains(uint64_t key, int32_t depth) {
+        if constexpr (!use_tt) {
+            return false;
+        }
         for (auto& entry : table[pos(key, depth)].entries) { // NOLINT(readability-use-anyofallof)
             if (entry.key == key) {
                 return true;
@@ -142,8 +150,21 @@ public:
         std::cout << std::endl;
     }
 
+    /*
+     * Break down the key in the usual modulo/bit masking way. Since for each key we need an entry for each depth, to
+     * not overload a single bucket we put each different depth entry in a different bucket. In theory, it does not
+     * matter how to choose that different bucket, but in practice we often look up pairs of these keys, so it makes
+     * sense to put them next to each other. (this gives a small but measurable speedup as well) Since we will usually
+     * look up an entry of a certain depth and then the entry of the previous depth, by subtracting depth we make sure
+     * that the second entry is the next entry in the vector, i.e. the next cache line.
+     */
     static inline uint64_t pos(uint64_t key, int32_t depth) {
-        return (key + depth) % size; // this is a compile-time constant and gets compiled to either a bit and or an efficient version of this
+        return (key - depth) % size; // this is a compile-time constant and gets compiled to either a bit and or an efficient version of this
+    }
+
+    void clear() {
+        missed_writes = 0;
+        std::fill(table.begin(), table.end(), Bucket());
     }
 
 private:
