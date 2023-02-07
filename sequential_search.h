@@ -9,10 +9,10 @@ class Search {
 private:
     Board board;
     uint64_t nodes = 0;
-    Transposition_Table tt{};
+    Transposition_Table& tt;
 
 public:
-    explicit Search(Board& board) : board(board) {
+    explicit Search(Board& board, Transposition_Table& table) : board(board), tt(table) {
     }
 
     int q_search(int alpha, int beta) {
@@ -285,7 +285,7 @@ public:
                 inner_eval = -nega_max(-beta, -alpha, depth - 1);
             } else if (search_full_window || (inner_eval = -null_window_search(-alpha, depth - 1)) > alpha){
                 inner_eval = -pv_search(-beta, -alpha, depth - 1);
-                std::cout << convertMoveToUci(move) << " eval " << inner_eval << " nodes " << nodes << std::endl;
+                //std::cout << convertMoveToUci(move) << " eval " << inner_eval << " nodes " << nodes << std::endl;
                 search_full_window = false;
             }
             //std::cout << convertMoveToUci(move) << " ";
