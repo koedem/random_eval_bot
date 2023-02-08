@@ -12,7 +12,12 @@ struct Spin_Lock {
     std::atomic<bool> spin_lock = false;
 
     void lock() {
-        while(spin_lock.exchange(true, std::memory_order_acquire));
+        for (;;) {
+            if (!spin_lock.exchange(true, std::memory_order_acquire)) {
+                break;
+            }
+            while (spin_lock.load(std::memory_order_relaxed));
+        }
     }
 
     void unlock() {
