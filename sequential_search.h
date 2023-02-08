@@ -20,7 +20,7 @@ private:
      * @return true if the TT probe produced a cutoff, i.e. the search can be skipped, and the TT entry value,
      * stored in alpha, can be returned.
      */
-    bool tt_probe(Move& move, int& alpha, int& beta, int depth) {
+    bool tt_probe(Move& move, Eval_Type& alpha, Eval_Type& beta, int depth) {
         TT_Info tt_entry{};
         if (tt.get_if_exists(board.hashKey, depth, tt_entry)) {
             assert(tt_entry.depth == depth);
@@ -53,8 +53,11 @@ public:
     explicit Search(Board& board, Transposition_Table<strategy>& table) : board(board), tt(table) {
     }
 
-    int q_search(int alpha, int beta) {
-        int q_eval = board.eval();
+    Eval_Type q_search(Eval_Type alpha, Eval_Type beta) {
+        Eval_Type q_eval = board.eval();
+        if (q_eval == INT16_MIN) { // Avoid overflow issues when inverting the eval.
+            q_eval++;
+        }
         nodes++;
         if constexpr (!Q_SEARCH) {
             return q_eval;
@@ -71,7 +74,7 @@ public:
         Movegen::legalmoves<CAPTURE>(board, captures);
         for (auto& capture : captures) {
             board.makeMove(capture.move);
-            int inner_eval = -q_search(-beta, -alpha);
+            Eval_Type inner_eval = -q_search(-beta, -alpha);
             board.unmakeMove(capture.move);
             if (inner_eval > q_eval) {
                 q_eval = inner_eval;
@@ -87,8 +90,8 @@ public:
         return q_eval;
     }
 
-    int nw_q_search(int beta) {
-        int q_eval = board.eval();
+    Eval_Type nw_q_search(Eval_Type beta) {
+        Eval_Type q_eval = board.eval();
         nodes++;
         if constexpr (!Q_SEARCH) {
             return q_eval;
@@ -102,7 +105,7 @@ public:
         Movegen::legalmoves<CAPTURE>(board, captures);
         for (auto& capture : captures) {
             board.makeMove(capture.move);
-            int inner_eval = -nw_q_search(-beta + 1);
+            Eval_Type inner_eval = -nw_q_search(-beta + 1);
             board.unmakeMove(capture.move);
             if (inner_eval > q_eval) {
                 q_eval = inner_eval;
@@ -115,10 +118,10 @@ public:
         return q_eval;
     }
 
-    int null_window_search(int beta, int depth) {
-        int eval = INT32_MIN / 2;
+    Eval_Type null_window_search(Eval_Type beta, int depth) {
+        Eval_Type eval = INT16_MIN + 1;
         Move tt_move = NO_MOVE;
-        int alpha = beta - 1;
+        Eval_Type alpha = beta - 1;
         if (tt_probe(tt_move, alpha, beta, depth)) { // I.e. if cutoff
             return alpha; // TT entry value is put here
         }
@@ -132,7 +135,7 @@ public:
         }
         for (auto& move : moves) {
             board.makeMove(move.move);
-            int inner_eval;
+            Eval_Type inner_eval;
             if (depth > 1) {
                 inner_eval = -null_window_search(-beta + 1, depth - 1);
             } else {
@@ -154,8 +157,8 @@ public:
         return eval;
     }
 
-    int pv_search(int alpha, int beta, int depth) {
-        int eval = INT32_MIN / 2;
+    Eval_Type pv_search(Eval_Type alpha, Eval_Type beta, int depth) {
+        Eval_Type eval = INT16_MIN + 1;
         Move tt_move = NO_MOVE;
         if (tt_probe(tt_move, alpha, beta, depth)) { // I.e. if cutoff
             return alpha; // TT entry value is put here
@@ -172,7 +175,7 @@ public:
         bool search_full_window = true;
         for (auto& move : moves) {
             board.makeMove(move.move);
-            int inner_eval;
+            Eval_Type inner_eval;
             if (depth == 1) {
                 inner_eval = -q_search(-beta, -alpha);
             } else if (search_full_window || (inner_eval = -null_window_search(-alpha, depth - 1)) > alpha){
@@ -200,8 +203,8 @@ public:
         return eval;
     }
 
-    int nega_max(int alpha, int beta, int depth) {
-        int eval = INT32_MIN / 2;
+    Eval_Type nega_max(Eval_Type alpha, Eval_Type beta, int depth) {
+        Eval_Type eval = INT16_MIN + 1;
         Move tt_move = NO_MOVE;
         if (tt_probe(tt_move, alpha, beta, depth)) { // I.e. if cutoff
             return alpha; // TT entry value is put here
@@ -213,7 +216,7 @@ public:
 
         for (auto& move : moves) {
             board.makeMove(move.move);
-            int inner_eval;
+            Eval_Type inner_eval;
             if (depth > 1) {
                 inner_eval = -nega_max(-beta, -alpha, depth - 1);
             } else {
@@ -241,14 +244,14 @@ public:
     }
 
     template<class Search_Result, bool PV_Search>
-    Search_Result root_max(int alpha, int beta, int depth, Search_Result& result) {
+    Search_Result root_max(Eval_Type alpha, Eval_Type beta, int depth, Search_Result& result) {
         auto start = std::chrono::high_resolution_clock::now();
         nodes = 0;
         assert(depth > 0);
-        int eval = INT32_MIN / 2;
+        Eval_Type eval = INT16_MIN + 1;
         Move tt_move = NO_MOVE;
         if (tt_probe(tt_move, alpha, beta, depth)) { // This can probably never happen but maybe in parallel search
-            return Search_Result{0, 0, tt_move, (int16_t) alpha, (uint16_t) depth};
+            return Search_Result{0, 0, tt_move, alpha, (uint16_t) depth};
         }
 
         Movelist moves;
@@ -264,7 +267,7 @@ public:
         for (auto& move_container : moves) {
             auto move = move_container.move;
             board.makeMove(move);
-            int inner_eval;
+            Eval_Type inner_eval;
             if (depth == 1) {
                 inner_eval = -q_search(-beta, -alpha);
             } else if constexpr (!PV_Search) {

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "chess-library/src/chess.hpp"
+#include "compile_time_constants.h"
 #include <random>
 
 using namespace Chess;
@@ -152,7 +153,7 @@ inline void Board::removePiece(Piece piece, Square sq)
 {
     piecesBB[piece] &= ~(1ULL << sq);
     board[sq] = None;
-    if constexpr (EVAL_TYPE == Incremental_PST) {
+    if constexpr (EVAL_MODE == Incremental_PST) {
         midgame_PST -= midgame_table[piece][sq];
         endgame_PST -= endgame_table[piece][sq];
         game_phase -= gamephase_influence[piece];
@@ -163,7 +164,7 @@ inline void Board::placePiece(Piece piece, Square sq)
 {
     piecesBB[piece] |= (1ULL << sq);
     board[sq] = piece;
-    if constexpr (EVAL_TYPE == Incremental_PST) {
+    if constexpr (EVAL_MODE == Incremental_PST) {
         midgame_PST += midgame_table[piece][sq];
         endgame_PST += endgame_table[piece][sq];
         game_phase += gamephase_influence[piece];
@@ -176,7 +177,7 @@ inline void Board::movePiece(Piece piece, Square fromSq, Square toSq) {
 }
 
 template<>
-int Board::eval<Board::Full_PST>()
+Eval_Type Board::eval<Board::Full_PST>()
 {
     int midgame = 0;
     int endgame = 0;
@@ -194,25 +195,25 @@ int Board::eval<Board::Full_PST>()
     int total_weight = 24;
     int midgame_weight = std::min(gamePhase, total_weight);
     int endgame_weight = total_weight - midgame_weight;
-    int interpolated = (midgame * midgame_weight + endgame * endgame_weight) / total_weight;
+    Eval_Type interpolated = (midgame * midgame_weight + endgame * endgame_weight) / total_weight;
     return (sideToMove == Chess::White ? 1 : -1) * interpolated;
 }
 
 template<>
-int Board::eval<Board::Incremental_PST>() {
+Eval_Type Board::eval<Board::Incremental_PST>() {
     int total_weight = 24;
     int midgame_weight = std::min(game_phase, total_weight);
     int endgame_weight = total_weight - midgame_weight;
-    int interpolated = (midgame_PST * midgame_weight + endgame_PST * endgame_weight) / total_weight;
-    int eval = (sideToMove == Chess::White ? 1 : -1) * interpolated;
+    Eval_Type interpolated = (midgame_PST * midgame_weight + endgame_PST * endgame_weight) / total_weight;
+    Eval_Type eval = (sideToMove == Chess::White ? 1 : -1) * interpolated;
     assert(eval == this->eval<Full_PST>());
     return eval;
 }
 
 template<>
-int Board::eval<Board::Random>() {
+Eval_Type Board::eval<Board::Random>() {
     static std::mt19937 rng(12345);
-    static std::uniform_int_distribution<int16_t> uniform(SHRT_MIN, SHRT_MAX);
+    static std::uniform_int_distribution<int16_t> uniform(INT16_MIN + 1, INT16_MAX);
     return uniform(rng);
 }
 
@@ -244,10 +245,10 @@ void change_seed() {
  * @return
  */
 template<>
-int Board::eval<Board::Pseudo_random>() {
+Eval_Type Board::eval<Board::Pseudo_random>() {
     return (int16_t) murmur64(hashKey);
 }
 
-int Board::eval() {
-    return eval<EVAL_TYPE>();
+Eval_Type Board::eval() {
+    return eval<EVAL_MODE>();
 }

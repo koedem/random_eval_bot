@@ -15,7 +15,7 @@ enum TT_Strategy {
 };
 
 struct TT_Info {
-    int32_t eval;
+    Eval_Type eval;
     Chess::Move move;
     int8_t depth;
     Bound_Type type;
