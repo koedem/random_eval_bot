@@ -16,7 +16,9 @@ struct Spin_Lock {
             if (!spin_lock.exchange(true, std::memory_order_acquire)) {
                 break;
             }
-            while (spin_lock.load(std::memory_order_relaxed));
+            while (spin_lock.load(std::memory_order_relaxed)) {
+                //__builtin_ia32_pause(); // In case of hyper-threading this should be beneficial in theory, but in practice it's slightly slower
+            }
         }
     }
 
