@@ -12,11 +12,11 @@ struct Spin_Lock {
     std::atomic<bool> spin_lock = false;
 
     void lock() {
-        while(spin_lock.exchange(true));
+        while(spin_lock.exchange(true, std::memory_order_acquire));
     }
 
     void unlock() {
-        spin_lock.store(false);
+        spin_lock.store(false, std::memory_order_release);
     }
 };
 
@@ -255,7 +255,12 @@ public:
      */
     void clear() {
         writes = 0;
-        std::fill(table.begin(), table.end(), Bucket());
+        for (Bucket& bucket : table) {
+            for (Entry& entry : bucket.entries) {
+                entry.key = 0;
+                entry.value = {};
+            }
+        }
     }
 
 private:
