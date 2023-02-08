@@ -92,6 +92,9 @@ public:
 
     Eval_Type nw_q_search(Eval_Type beta) {
         Eval_Type q_eval = board.eval();
+        if (q_eval == INT16_MIN) { // Avoid overflow issues when inverting the eval.
+            q_eval++;
+        }
         nodes++;
         if constexpr (!Q_SEARCH) {
             return q_eval;
