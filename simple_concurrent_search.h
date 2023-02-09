@@ -4,6 +4,8 @@
 #include <functional>
 #include "locking_tt.h"
 
+std::atomic<bool> finished = false;
+
 template<bool Q_SEARCH, TT_Strategy strategy>
 class alignas (128) Search_Thread { // Let's go big with the alignas just in case
 
@@ -172,6 +174,9 @@ public:
                     break;
                 }
             }
+            if (finished) { // If someone else already completed the search there is no reason for us to continue
+                return eval;
+            }
         }
         entry.eval = eval;
         tt.emplace(board.hashKey, entry, depth);
@@ -217,6 +222,9 @@ public:
                     entry.type = EXACT; // We raised alpha, so it's no longer a lower bound, either exact or upper bound
                 }
 
+                if (finished) { // If someone else already completed the search there is no reason for us to continue
+                    return eval;
+                }
             }
         }
         entry.eval = eval;
@@ -257,6 +265,9 @@ public:
                     entry.type = EXACT; // We raised alpha, so it's no longer a lower bound, either exact or upper bound
                 }
 
+                if (finished) { // If someone else already completed the search there is no reason for us to continue
+                    return eval;
+                }
             }
         }
         entry.eval = eval;
@@ -272,11 +283,7 @@ public:
         Eval_Type eval = INT16_MIN + 1;
         Move tt_move = NO_MOVE;
         if (tt_probe(tt_move, alpha, beta, depth)) { // This can probably never happen but maybe in parallel search
-            result.move = tt_move;
-            result.eval = alpha;
-            result.depth = depth;
-            return; // TODO
-//            return Search_Result{0, 0, tt_move, alpha, (uint16_t) depth};
+            return; // I'm claiming that if this happens, then we already have a search result from another thread so we don't need to return anything
         }
 
         Movelist moves;
@@ -318,17 +325,26 @@ public:
                 if (eval > alpha) {
                     alpha = eval;
                 }
+
+                if (finished) {
+                    return;
+                }
             }
         }
         tt.emplace(board.hashKey, {eval, best_move, (int8_t) depth, EXACT}, depth);
 
         auto end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> duration = end - start;
-        result.nodes = nodes;
-        result.duration = duration.count();
-        result.move = best_move;
-        result.eval = eval;
-        result.depth = depth;
+
+        bool i_am_first = !finished.exchange(false);
+
+        if (i_am_first) { // The first thread to finish gets to write the search result
+            result.nodes = nodes;
+            result.duration = duration.count();
+            result.move = best_move;
+            result.eval = eval;
+            result.depth = depth;
+        }
     }
 };
 
@@ -343,25 +359,31 @@ public:
                     searchers(num_threads, Search_Thread<Q_SEARCH, strategy>(board, table)) {
     }
 
+    /**
+     *
+     * @tparam Search_Result
+     * @tparam PV_Search
+     * @param up_to_depth Search for each depth from 1 to up_to_depth through iterative deepening.
+     * @param iteration Optional parameter, if passed will be printed in the output. Useful for automated benchmarks.
+     * @return
+     */
     template<class Search_Result, bool PV_Search>
-    Search_Result parallel_search(int up_to_depth) {
+    Search_Result parallel_search(int up_to_depth, int iteration = 0) {
         Search_Result result;
         for (int depth = 1; depth <= up_to_depth; depth++) {
             std::vector<std::thread> search_threads;
-            std::vector<Search_Result> results(num_threads);
             Eval_Type alpha = INT16_MIN + 1; // Don't use INT16_MIN because negating it causes an overflow
             Eval_Type beta = INT16_MAX;
+            finished = false;
             for (size_t i = 0; i < num_threads; i++) {
                 auto func = std::bind(&Search_Thread<Q_SEARCH, strategy>::template root_max<Search_Result, PV_Search>,
-                                      &searchers[i], alpha, beta, depth, std::ref(results[i]));
+                                      &searchers[i], alpha, beta, depth, std::ref(result));
                 search_threads.emplace_back(func);
             }
             for (auto &thread: search_threads) {
                 thread.join();
             }
-            for (size_t i = 0; i < 1/*num_threads*/; i++) {
-                results[i].print_table(i);
-            }
+            result.print_table(iteration);
         }
         return result;
     }
