@@ -5,7 +5,7 @@
 #include "locking_tt.h"
 
 template<bool Q_SEARCH, TT_Strategy strategy>
-class Search_Thread {
+class alignas (128) Search_Thread { // Let's go big with the alignas just in case
 
 private:
     Board board;
@@ -48,6 +48,23 @@ private:
             }
         }
         return false;
+    }
+
+    template<Movetype TYPE>
+    void generate_shuffled_moves(Movelist& moves) {
+        Movegen::legalmoves<TYPE>(board, moves);
+        thread_local static std::mt19937 mt;
+
+        for (int i = 0; i < moves.size; i++) {
+            // Get a random index of the array past the current index.
+            // ... The argument is an exclusive bound.
+            //     It will not go past the array's end.
+            int randomValue = i + (mt() % (moves.size - i)); // TODO, can we get rid of this mod?
+            // Swap the random element with the present element.
+            auto randomElement = moves[randomValue];
+            moves[randomValue] = moves[i];
+            moves[i] = randomElement;
+        }
     }
 
 public:
@@ -132,7 +149,7 @@ public:
 
         Locked_TT_Info entry{eval, tt_move, (int8_t) depth, UPPER_BOUND}; // If we don't find a move, keep the old TT move
         Movelist moves;
-        Movegen::legalmoves<ALL>(board, moves);
+        generate_shuffled_moves<ALL>(moves);
         int tt_move_index = moves.find(tt_move);
         if (tt_move_index > 0) {
             std::swap(moves[0], moves[tt_move_index]); // Search the TT move first
@@ -170,7 +187,7 @@ public:
 
         Locked_TT_Info entry{eval, tt_move, (int8_t) depth, UPPER_BOUND}; // If we don't find a move, keep the old TT move
         Movelist moves;
-        Movegen::legalmoves<ALL>(board, moves);
+        generate_shuffled_moves<ALL>(moves);
         int tt_move_index = moves.find(tt_move);
         if (tt_move_index > 0) {
             std::swap(moves[0], moves[tt_move_index]); // Search the TT move first
@@ -216,8 +233,8 @@ public:
 
         Locked_TT_Info entry{eval, tt_move, (int8_t) depth, UPPER_BOUND}; // If we don't find a move, keep the old TT move
         Movelist moves;
-        Movegen::legalmoves<ALL>(board, moves);
-
+        generate_shuffled_moves<ALL>(moves);
+        // TODO why there no hashmove first here?
         for (auto& move : moves) {
             board.makeMove(move.move);
             Eval_Type inner_eval;
@@ -263,7 +280,7 @@ public:
         }
 
         Movelist moves;
-        Movegen::legalmoves<ALL>(board, moves);
+        generate_shuffled_moves<ALL>(moves);
         int tt_move_index = moves.find(tt_move);
         if (tt_move_index > 0) {
             std::swap(moves[0], moves[tt_move_index]); // Search the TT move first
@@ -338,7 +355,9 @@ public:
         for (auto& thread : search_threads) {
             thread.join();
         }
-        result = results[0];
+        for (size_t i = 0; i < 1/*num_threads*/; i++) {
+            results[i].print_table(i);
+        }
         return result;
     }
 };
