@@ -344,19 +344,24 @@ public:
     }
 
     template<class Search_Result, bool PV_Search>
-    Search_Result root_max(Eval_Type alpha, Eval_Type beta, int depth, Search_Result& result) {
-        std::vector<std::thread> search_threads;
-        std::vector<Search_Result> results(num_threads);
-        for (size_t i = 0; i < num_threads; i++) {
-            auto func = std::bind(&Search_Thread<Q_SEARCH, strategy>::template root_max<Search_Result, PV_Search>,
-                    &searchers[i], alpha, beta, depth, std::ref(results[i]));
-            search_threads.emplace_back(func);
-        }
-        for (auto& thread : search_threads) {
-            thread.join();
-        }
-        for (size_t i = 0; i < 1/*num_threads*/; i++) {
-            results[i].print_table(i);
+    Search_Result parallel_search(int up_to_depth) {
+        Search_Result result;
+        for (int depth = 1; depth <= up_to_depth; depth++) {
+            std::vector<std::thread> search_threads;
+            std::vector<Search_Result> results(num_threads);
+            Eval_Type alpha = INT16_MIN + 1; // Don't use INT16_MIN because negating it causes an overflow
+            Eval_Type beta = INT16_MAX;
+            for (size_t i = 0; i < num_threads; i++) {
+                auto func = std::bind(&Search_Thread<Q_SEARCH, strategy>::template root_max<Search_Result, PV_Search>,
+                                      &searchers[i], alpha, beta, depth, std::ref(results[i]));
+                search_threads.emplace_back(func);
+            }
+            for (auto &thread: search_threads) {
+                thread.join();
+            }
+            for (size_t i = 0; i < 1/*num_threads*/; i++) {
+                results[i].print_table(i);
+            }
         }
         return result;
     }

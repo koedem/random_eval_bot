@@ -27,15 +27,14 @@ int main() {
     Locking_TT<REPLACE_LAST_ENTRY> locking_tt(16384);
 
     Search<true, REPLACE_LAST_ENTRY> search(board, table);
-    Lazy_SMP<true, REPLACE_LAST_ENTRY> lazy_smp(1, board, locking_tt);
+    size_t num_threads = 11;
+    Lazy_SMP<true, REPLACE_LAST_ENTRY> lazy_smp(num_threads, board, locking_tt);
     for (int iteration = 0; iteration < 10; iteration++) {
-        for (int depth = 1; depth < 15; depth++) {
-            Search_Result result;
-            lazy_smp.root_max<Search_Result, true>(INT16_MIN + 1, INT16_MAX, depth, result);
+        int up_to_depth = 15;
+        lazy_smp.parallel_search<Search_Result, true>(up_to_depth);
             //result.print_table(iteration);
             //locking_tt.print_size();
             //locking_tt.print_pv(board, depth);
-        }
         locking_tt.clear();
     }
     return 0;
