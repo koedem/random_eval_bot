@@ -336,7 +336,9 @@ public:
         auto end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> duration = end - start;
 
-        bool i_am_first = !finished.exchange(false);
+        bool i_am_first = !finished.exchange(true); // Setting finished to true tells all threads to finish.
+        // Surprisingly, this can lead to a slowdown at low depths, in testing up to depth 9 which does take multiple
+        // seconds. However, for depth 10 and much more so depth 11 this leads to a big speedup.
 
         if (i_am_first) { // The first thread to finish gets to write the search result
             result.nodes = nodes;
