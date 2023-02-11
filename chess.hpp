@@ -137,7 +137,7 @@ Eval_Type Board::eval<Board::Incremental_PST>() {
 template<>
 Eval_Type Board::eval<Board::Random>() {
     static std::mt19937 rng(12345);
-    static std::uniform_int_distribution<int16_t> uniform(INT16_MIN + 1, INT16_MAX);
+    static std::uniform_int_distribution<int16_t> uniform(MIN_EVAL, MAX_EVAL);
     return uniform(rng);
 }
 

@@ -76,8 +76,8 @@ public:
 
     Eval_Type q_search(Eval_Type alpha, Eval_Type beta) {
         Eval_Type q_eval = board.eval();
-        if (q_eval == INT16_MIN) { // Avoid overflow issues when inverting the eval.
-            q_eval++;
+        if (q_eval < MIN_EVAL) { // Avoid overflow issues when inverting the eval.
+            q_eval = MIN_EVAL;
         }
         nodes++;
         if constexpr (!Q_SEARCH) {
@@ -113,8 +113,8 @@ public:
 
     Eval_Type nw_q_search(Eval_Type beta) {
         Eval_Type q_eval = board.eval();
-        if (q_eval == INT16_MIN) { // Avoid overflow issues when inverting the eval.
-            q_eval++;
+        if (q_eval < MIN_EVAL) { // Avoid overflow issues when inverting the eval.
+            q_eval = MIN_EVAL;
         }
         nodes++;
         if constexpr (!Q_SEARCH) {
@@ -143,7 +143,7 @@ public:
     }
 
     Eval_Type null_window_search(Eval_Type beta, int depth) {
-        Eval_Type eval = INT16_MIN + 1;
+        Eval_Type eval = MIN_EVAL;
         Move tt_move = NO_MOVE;
         Eval_Type alpha = beta - 1;
         if (tt_probe(tt_move, alpha, beta, depth)) { // I.e. if cutoff
@@ -185,7 +185,7 @@ public:
     }
 
     Eval_Type pv_search(Eval_Type alpha, Eval_Type beta, int depth) {
-        Eval_Type eval = INT16_MIN + 1;
+        Eval_Type eval = MIN_EVAL;
         Move tt_move = NO_MOVE;
         if (tt_probe(tt_move, alpha, beta, depth)) { // I.e. if cutoff
             return alpha; // TT entry value is put here
@@ -234,7 +234,7 @@ public:
     }
 
     Eval_Type nega_max(Eval_Type alpha, Eval_Type beta, int depth) {
-        Eval_Type eval = INT16_MIN + 1;
+        Eval_Type eval = MIN_EVAL;
         Move tt_move = NO_MOVE;
         if (tt_probe(tt_move, alpha, beta, depth)) { // I.e. if cutoff
             return alpha; // TT entry value is put here
@@ -281,7 +281,7 @@ public:
         auto start = std::chrono::high_resolution_clock::now();
         nodes = 0;
         assert(depth > 0);
-        Eval_Type eval = INT16_MIN + 1;
+        Eval_Type eval = MIN_EVAL;
         Move tt_move = NO_MOVE;
         if (tt_probe(tt_move, alpha, beta, depth)) { // This can probably never happen but maybe in parallel search
             return; // I'm claiming that if this happens, then we already have a search result from another thread so we don't need to return anything
@@ -376,8 +376,8 @@ public:
         Search_Result result;
         for (int depth = 1; depth <= up_to_depth; depth++) {
             std::vector<std::thread> search_threads;
-            Eval_Type alpha = INT16_MIN + 1; // Don't use INT16_MIN because negating it causes an overflow
-            Eval_Type beta = INT16_MAX;
+            Eval_Type alpha = MIN_EVAL;
+            Eval_Type beta = MAX_EVAL;
             finished = false;
             for (size_t i = 0; i < num_threads; i++) {
                 auto func = std::bind(&Search_Thread<Q_SEARCH, strategy>::template root_max<Search_Result, PV_Search>,

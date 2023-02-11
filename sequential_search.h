@@ -55,8 +55,8 @@ public:
 
     Eval_Type q_search(Eval_Type alpha, Eval_Type beta) {
         Eval_Type q_eval = board.eval();
-        if (q_eval == INT16_MIN) { // Avoid overflow issues when inverting the eval.
-            q_eval++;
+        if (q_eval < MIN_EVAL) { // Avoid overflow issues when inverting the eval.
+            q_eval = MIN_EVAL;
         }
         nodes++;
         if constexpr (!Q_SEARCH) {
@@ -92,8 +92,8 @@ public:
 
     Eval_Type nw_q_search(Eval_Type beta) {
         Eval_Type q_eval = board.eval();
-        if (q_eval == INT16_MIN) { // Avoid overflow issues when inverting the eval.
-            q_eval++;
+        if (q_eval < MIN_EVAL) { // Avoid overflow issues when inverting the eval.
+            q_eval = MIN_EVAL;
         }
         nodes++;
         if constexpr (!Q_SEARCH) {
@@ -122,7 +122,7 @@ public:
     }
 
     Eval_Type null_window_search(Eval_Type beta, int depth) {
-        Eval_Type eval = INT16_MIN + 1;
+        Eval_Type eval = MIN_EVAL;
         Move tt_move = NO_MOVE;
         Eval_Type alpha = beta - 1;
         if (tt_probe(tt_move, alpha, beta, depth)) { // I.e. if cutoff
@@ -161,7 +161,7 @@ public:
     }
 
     Eval_Type pv_search(Eval_Type alpha, Eval_Type beta, int depth) {
-        Eval_Type eval = INT16_MIN + 1;
+        Eval_Type eval = MIN_EVAL;
         Move tt_move = NO_MOVE;
         if (tt_probe(tt_move, alpha, beta, depth)) { // I.e. if cutoff
             return alpha; // TT entry value is put here
@@ -207,7 +207,7 @@ public:
     }
 
     Eval_Type nega_max(Eval_Type alpha, Eval_Type beta, int depth) {
-        Eval_Type eval = INT16_MIN + 1;
+        Eval_Type eval = MIN_EVAL;
         Move tt_move = NO_MOVE;
         if (tt_probe(tt_move, alpha, beta, depth)) { // I.e. if cutoff
             return alpha; // TT entry value is put here
@@ -251,7 +251,7 @@ public:
         auto start = std::chrono::high_resolution_clock::now();
         nodes = 0;
         assert(depth > 0);
-        Eval_Type eval = INT16_MIN + 1;
+        Eval_Type eval = MIN_EVAL;
         Move tt_move = NO_MOVE;
         if (tt_probe(tt_move, alpha, beta, depth)) { // This can probably never happen but maybe in parallel search
             return Search_Result{0, 0, tt_move, alpha, (uint16_t) depth};
