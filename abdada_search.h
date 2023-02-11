@@ -30,12 +30,12 @@ private:
             assert(tt_entry.depth == depth);
             assert(tt_entry.eval != ON_EVALUATION);
 
-            if (exclusive && tt_entry.proc_number > 0) {
+            if (exclusive && tt_entry.proc_number > 0) { // No proc incremented
                 alpha = ON_EVALUATION;
                 return true; // "Cutoff" because another thread is already searching this node.
             }
 
-            if (tt_entry.type == EXACT) {
+            if (tt_entry.type == EXACT) { // No proc incremented
                 alpha = tt_entry.eval;
                 return true;
             }
@@ -47,6 +47,7 @@ private:
 
             if (alpha >= beta) { // Our window is empty due to the TT hit
                 alpha = tt_entry.eval;
+                tt.decrement_proc(board.hashKey, depth); // We incremented this and now skip the search, so decrement again.
                 return true;
             }
             move = tt_entry.move;
