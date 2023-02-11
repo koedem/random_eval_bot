@@ -4,7 +4,6 @@
 #include <functional>
 #include "locking_tt.h"
 
-std::atomic<bool> finished = false;
 
 template<bool Q_SEARCH, TT_Strategy strategy>
 class alignas (128) Search_Thread { // Let's go big with the alignas just in case
@@ -13,6 +12,7 @@ private:
     Board board;
     uint64_t nodes = 0;
     Locking_TT<strategy>& tt;
+    std::atomic<bool>& finished;
 
     /**
      *
@@ -70,7 +70,8 @@ private:
     }
 
 public:
-    explicit Search_Thread(Board& board, Locking_TT<strategy>& table) : board(board), tt(table) {
+    explicit Search_Thread(Board& board, Locking_TT<strategy>& table, std::atomic<bool>& finished)
+                                    : board(board), tt(table), finished(finished) {
     }
 
     Eval_Type q_search(Eval_Type alpha, Eval_Type beta) {
@@ -353,12 +354,13 @@ public:
 template<bool Q_SEARCH, TT_Strategy strategy>
 class Lazy_SMP {
 
+    std::atomic<bool> finished = false;
     size_t num_threads;
     std::vector<Search_Thread<Q_SEARCH, strategy>> searchers;
 
 public:
     Lazy_SMP(size_t num_threads, Board& board, Locking_TT<strategy>& table) : num_threads(num_threads),
-                    searchers(num_threads, Search_Thread<Q_SEARCH, strategy>(board, table)) {
+                    searchers(num_threads, Search_Thread<Q_SEARCH, strategy>(board, table, finished)) {
     }
 
     /**
