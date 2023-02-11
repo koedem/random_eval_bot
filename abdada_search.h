@@ -70,7 +70,7 @@ private:
             // Get a random index of the array past the current index.
             // ... The argument is an exclusive bound.
             //     It will not go past the array's end.
-            int randomValue = i + (mt() % (moves.size - i)); // TODO, can we get rid of this mod?
+            int randomValue = i + (mt() % (moves.size - i)); // One could try to get rid of this mod but appears not worth it in terms of performance.
             // Swap the random element with the present element.
             auto randomElement = moves[randomValue];
             moves[randomValue] = moves[i];
@@ -166,28 +166,58 @@ public:
         if (tt_move_index > 0) {
             std::swap(moves[0], moves[tt_move_index]); // Search the TT move first
         }
-        for (auto& move : moves) {
-            board.makeMove(move.move);
+
+        std::vector<Move> deferred_moves{};
+        deferred_moves.reserve(moves.size);
+
+        for (int move_index = 0; move_index < moves.size; move_index++) {
+            Move move = moves[move_index].move;
+            board.makeMove(move);
             Eval_Type inner_eval;
             if (depth > 1) {
-                inner_eval = -null_window_search(-beta + 1, depth - 1, false); // TODO move == firstmove
+                inner_eval = -null_window_search(-beta + 1, depth - 1, move_index != 0);
+                if (inner_eval == (Eval_Type) -ON_EVALUATION) {
+                    deferred_moves.emplace_back(move);
+                }
             } else {
                 inner_eval = -nw_q_search(-beta + 1);
             }
-            board.unmakeMove(move.move);
+            board.unmakeMove(move);
 
             if (inner_eval > eval) {
                 eval = inner_eval;
-                entry.move = move.move;
+                entry.move = move;
                 if (eval >= beta) {
                     entry.type = LOWER_BOUND;
                     break;
                 }
             }
             if (finished) { // If someone else already completed the search there is no reason for us to continue
+                tt.decrement_proc(board.hashKey, depth); // We stop searching
                 return eval;
             }
         }
+
+        for (Move move : deferred_moves) {
+            board.makeMove(move);
+            Eval_Type inner_eval;
+            inner_eval = -null_window_search(-beta + 1, depth - 1, false);
+            board.unmakeMove(move);
+
+            if (inner_eval > eval) {
+                eval = inner_eval;
+                entry.move = move;
+                if (eval >= beta) {
+                    entry.type = LOWER_BOUND;
+                    break;
+                }
+            }
+            if (finished) { // If someone else already completed the search there is no reason for us to continue
+                tt.decrement_proc(board.hashKey, depth); // We stop searching
+                return eval;
+            }
+        }
+
         entry.eval = eval;
         tt.template emplace<true>(board.hashKey, entry, depth);
         return eval;
@@ -211,7 +241,7 @@ public:
         std::vector<Move> deferred_moves{};
         deferred_moves.reserve(moves.size);
 
-        bool search_full_window = true;
+        bool search_full_window = true; // TODO can this be removed?
         for (int move_index = 0; move_index < moves.size; move_index++) {
             Move move = moves[move_index].move;
             board.makeMove(move);
@@ -245,6 +275,7 @@ public:
                 }
 
                 if (finished) { // If someone else already completed the search there is no reason for us to continue
+                    tt.decrement_proc(board.hashKey, depth); // We stop searching
                     return eval;
                 }
             }
@@ -271,6 +302,7 @@ public:
                 }
 
                 if (finished) { // If someone else already completed the search there is no reason for us to continue
+                    tt.decrement_proc(board.hashKey, depth); // We stop searching
                     return eval;
                 }
             }
@@ -330,6 +362,7 @@ public:
                 }
 
                 if (finished) { // If someone else already completed the search there is no reason for us to continue
+                    tt.decrement_proc(board.hashKey, depth); // We stop searching
                     return eval;
                 }
             }
@@ -391,6 +424,7 @@ public:
                 }
 
                 if (finished) {
+                    tt.decrement_proc(board.hashKey, depth); // We stop searching
                     return;
                 }
             }
