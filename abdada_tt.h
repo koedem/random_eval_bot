@@ -36,7 +36,7 @@ private:
          * @param other
          * @return
          */
-        bool operator<(Locked_TT_Info& other) const {
+        bool operator<(ABDADA_TT_Info& other) const {
             if (value.proc_number > 0) {  // If we are currently searching on this entry, then this should not be replaced,
                 return false;       // so gets higher priority.
             }
@@ -85,10 +85,10 @@ public:
      * @param value
      */
     template<TT_Strategy strat>
-    void replace(Entry entries[entries_per_bucket], uint64_t key, Locked_TT_Info value);
+    void replace(Entry entries[entries_per_bucket], uint64_t key, ABDADA_TT_Info value);
 
     template<>
-    void replace<RANDOM_REPLACE>(Entry entries[entries_per_bucket], uint64_t key, Locked_TT_Info value) {
+    void replace<RANDOM_REPLACE>(Entry entries[entries_per_bucket], uint64_t key, ABDADA_TT_Info value) {
         for (int i = 0; i < 4; i++) {
             auto & entry = entries[i];
             if (entry.key == 0) {
@@ -102,7 +102,7 @@ public:
     }
 
     template<>
-    void replace<TWO_TWO_SPLIT>(Entry entries[entries_per_bucket], uint64_t key, Locked_TT_Info value) {
+    void replace<TWO_TWO_SPLIT>(Entry entries[entries_per_bucket], uint64_t key, ABDADA_TT_Info value) {
         for (int i = 0; i < 4; i++) {
             auto & entry = entries[i];
             if (entry < value) { // last slot is always replace
@@ -118,7 +118,7 @@ public:
     }
 
     template<>
-    void replace<REPLACE_LAST_ENTRY>(Entry entries[entries_per_bucket], uint64_t key, Locked_TT_Info value) {
+    void replace<REPLACE_LAST_ENTRY>(Entry entries[entries_per_bucket], uint64_t key, ABDADA_TT_Info value) {
         for (int i = 0; i < 4; i++) {
             auto & entry = entries[i];
             if (entry < value || i == 3) { // last slot is always replace
@@ -129,7 +129,7 @@ public:
     }
 
     template<>
-    void replace<DEPTH_FIRST>(Entry entries[entries_per_bucket], uint64_t key, Locked_TT_Info value) {
+    void replace<DEPTH_FIRST>(Entry entries[entries_per_bucket], uint64_t key, ABDADA_TT_Info value) {
         for (int i = 0; i < 4; i++) {
             auto & entry = entries[i];
             if (entry < value) {
@@ -145,7 +145,7 @@ public:
      * @param value
      * @param depth
      */
-    void emplace(uint64_t key, Locked_TT_Info value, int32_t depth) {
+    void emplace(uint64_t key, ABDADA_TT_Info value, int32_t depth) {
         if constexpr (!use_tt) {
             return;
         }
@@ -183,7 +183,7 @@ public:
     /**TODO
      * Returns true and puts the value into the third parameter reference, if such an entry exists, and false otherwise.
      */
-    [[nodiscard]] bool get_if_exists(uint64_t key, int32_t depth, Locked_TT_Info& info) {
+    [[nodiscard]] bool get_if_exists(uint64_t key, int32_t depth, ABDADA_TT_Info& info) {
         if constexpr (!use_tt) {
             return false;
         }
