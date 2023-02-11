@@ -1,0 +1,270 @@
+#pragma once
+
+#include <cstdint>
+#include <iostream>
+#include <vector>
+#include <bit>
+#include "compile_time_constants.h"
+#include "transposition_table.h"
+#include "chess.hpp"
+#include "locking_tt.h"
+
+/**
+ * This was originally supposed to be a template specialization of a templated locking TT, however, I could not get that
+ * to work. So here the unfortunate partly code duplicated version.
+ */
+
+template<TT_Strategy strategy>
+class ABDADA_TT {
+
+private:
+    struct Entry {
+        uint64_t key = 0;
+        Locked_TT_Info value = {};
+        std::int8_t proc_number = 0;
+        Spin_Lock spin_lock;
+
+        /**
+         * We don't lock anything here, it is the users responsibility to make sure the surrounding structs are locked.
+         * @param other
+         * @return
+         */
+        bool operator<(Locked_TT_Info& other) const {
+            if (proc_number > 0) {  // If we are currently searching on this entry, then this should not be replaced,
+                return false;       // so gets higher priority.
+            }
+            if (value.type == EXACT && other.type != EXACT) {
+                return false;
+            } else if (value.type != EXACT && other.type == EXACT) {
+                return true;
+            }
+            return value.depth < other.depth;
+        }
+    };
+
+    struct alignas(64) Bucket {
+        Entry entries[entries_per_bucket];
+    };
+
+public:
+    explicit ABDADA_TT(uint64_t size_in_mb = 8192) :
+                size((1 << 20) * std::bit_floor(size_in_mb) / sizeof(Bucket)), mask(size - 1), table(size) {
+    }
+
+    /**
+     * This method is not thread safe because there's not really a reason to make it.
+     */
+    void print_size() const {
+        uint64_t num_elements = 0, exact_entries = 0;
+        for (const Bucket& bucket : table) {
+            for (auto & entry : bucket.entries) {
+                if (entry.key != 0) {
+                    num_elements++;
+                    if (entry.value.type == EXACT) {
+                        exact_entries++;
+                    }
+                }
+            }
+        }
+        std::cout << "Table elements: " << num_elements << ", exact entries: " << exact_entries << ", total writes: "
+                  << writes << " bucket count " << table.size() << ", bucket capacity: " << table.capacity() << std::endl;
+    }
+
+    /** TODO
+     * This method assumes that if necessary the corresponding entries lock has already been acquired.
+     * @tparam strat
+     * @param entries
+     * @param key
+     * @param value
+     */
+    template<TT_Strategy strat>
+    void replace(Entry entries[entries_per_bucket], uint64_t key, Locked_TT_Info value);
+
+    template<>
+    void replace<RANDOM_REPLACE>(Entry entries[entries_per_bucket], uint64_t key, Locked_TT_Info value) {
+        for (int i = 0; i < 4; i++) {
+            auto & entry = entries[i];
+            if (entry.key == 0) {
+                entry.value = value;
+                entry.key = key;
+                return;
+            }
+        }
+        entries[writes % entries_per_bucket].key = key; // Modulo but by a compile-time constant so this should be optimized
+        entries[writes % entries_per_bucket].value = value; // Missed writes is basically random across different buckets
+    }
+
+    template<>
+    void replace<TWO_TWO_SPLIT>(Entry entries[entries_per_bucket], uint64_t key, Locked_TT_Info value) {
+        for (int i = 0; i < 4; i++) {
+            auto & entry = entries[i];
+            if (entry < value) { // last slot is always replace
+                std::swap(entry.value, value);
+                std::swap(entry.key, key);
+            }
+        }
+        if (key != 0) { // So we didn't just overwrite an empty entry
+            auto & entry = entries[2 + (writes & 1)]; // Writes & 1 "randomly" chooses the 3rd or 4th entry to overwrite
+            std::swap(entry.value, value);
+            std::swap(entry.key, key);
+        }
+    }
+
+    template<>
+    void replace<REPLACE_LAST_ENTRY>(Entry entries[entries_per_bucket], uint64_t key, Locked_TT_Info value) {
+        for (int i = 0; i < 4; i++) {
+            auto & entry = entries[i];
+            if (entry < value || i == 3) { // last slot is always replace
+                std::swap(entry.value, value);
+                std::swap(entry.key, key);
+            }
+        }
+    }
+
+    template<>
+    void replace<DEPTH_FIRST>(Entry entries[entries_per_bucket], uint64_t key, Locked_TT_Info value) {
+        for (int i = 0; i < 4; i++) {
+            auto & entry = entries[i];
+            if (entry < value) {
+                std::swap(entry.value, value);
+                std::swap(entry.key, key);
+            }
+        }
+    }
+
+    /** TODO
+     * Locks the corresponding bucket and writes the entry. This is a blocking write.
+     * @param key
+     * @param value
+     * @param depth
+     */
+    void emplace(uint64_t key, Locked_TT_Info value, int32_t depth) {
+        if constexpr (!use_tt) {
+            return;
+        }
+        auto position = pos(key, depth);
+        Spin_Lock& spin_lock = table[position].entries[0].spin_lock;
+        std::lock_guard<Spin_Lock> guard(spin_lock);
+        auto & entries = table[position].entries;
+        for (auto & entry : entries) { // Check if the entry already exists
+            if (entry.key == key) {
+                assert(entry.value.depth == depth);
+                assert(value.depth == depth);
+                entry.value = value;
+                return;
+            }
+        }
+        writes++; // Entry does not exist yet so we create it
+        replace<strategy>(entries, key, value); // Try to replace an existing (possibly empty) entry.
+    }
+
+    /** TODO
+     * This should ideally only be called after making sure the entry exists via the contains method.
+     */
+    [[nodiscard]] Locked_TT_Info at(uint64_t key, int32_t depth) {
+        auto position = pos(key, depth);
+        std::lock_guard<Spin_Lock> guard(table[position].entries[0].spin_lock);
+        auto & entries = table[position].entries;
+        for (auto& entry : entries) {
+            if (entry.key == key) {
+                return entry.value;
+            }
+        }
+        return Locked_TT_Info{};
+    }
+
+    /**TODO
+     * Returns true and puts the value into the third parameter reference, if such an entry exists, and false otherwise.
+     */
+    [[nodiscard]] bool get_if_exists(uint64_t key, int32_t depth, Locked_TT_Info& info) {
+        if constexpr (!use_tt) {
+            return false;
+        }
+        auto position = pos(key, depth);
+        Spin_Lock& spin_lock = table[position].entries[0].spin_lock;
+        std::lock_guard<Spin_Lock> guard(spin_lock);
+        auto & entries = table[position].entries;
+        for (auto& entry : entries) {
+            if (entry.key == key) {
+                info = entry.value;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * TODO
+     * @param key
+     * @param depth
+     * @return
+     */
+    [[nodiscard]] bool contains(uint64_t key, int32_t depth) {
+        if constexpr (!use_tt) {
+            return false;
+        }
+        auto position = pos(key, depth);
+        std::lock_guard<Spin_Lock> guard(table[position].entries[0].spin_lock);
+        auto & entries = table[position].entries;
+        for (auto& entry : entries) { // NOLINT(readability-use-anyofallof)
+            if (entry.key == key) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * This method is thread-safe, I think.
+     * @param board
+     * @param depth
+     */
+    void print_pv(Board& board, int depth) {
+        Board copy(board);
+        while (depth > 0) {
+            Locked_TT_Info info{};
+            if (get_if_exists(copy.hashKey, depth, info)) {
+                Move move = info.move;
+                std::cout << convertMoveToUci(move) << " ";
+                copy.makeMove(move);
+                depth--;
+            } else {
+                break;
+            }
+        }
+        std::cout << std::endl;
+    }
+
+    /*
+     * Break down the key in the usual modulo/bit masking way. Since for each key we need an entry for each depth, to
+     * not overload a single bucket we put each different depth entry in a different bucket. In theory, it does not
+     * matter how to choose that different bucket, but in practice we often look up pairs of these keys, so it makes
+     * sense to put them next to each other. (this gives a small but measurable speedup as well) Since we will usually
+     * look up an entry of a certain depth and then the entry of the previous depth, by subtracting depth we make sure
+     * that the second entry is the next entry in the vector, i.e. the next cache line.
+     */
+    [[nodiscard]] inline uint64_t pos(uint64_t key, int32_t depth) const {
+        return (key - depth) & mask; // this is a compile-time constant and gets compiled to either a bit and or an efficient version of this
+    }
+
+    /**
+     * Imo doesn't make much sense locking this.
+     */
+    void clear() {
+        writes = 0;
+        for (Bucket& bucket : table) {
+            for (Entry& entry : bucket.entries) {
+                entry.key = 0;
+                entry.value = {};
+                entry.proc_number = 0;
+            }
+        }
+    }
+
+private:
+    uint64_t size;
+    uint64_t mask;
+    std::vector<Bucket> table;
+
+    std::atomic<uint64_t> writes = 0;
+};
