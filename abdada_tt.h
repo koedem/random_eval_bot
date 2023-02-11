@@ -77,7 +77,7 @@ public:
                   << writes << " bucket count " << table.size() << ", bucket capacity: " << table.capacity() << std::endl;
     }
 
-    /** TODO
+    /**
      * This method assumes that if necessary the corresponding entries lock has already been acquired.
      * @tparam strat
      * @param entries
@@ -139,12 +139,14 @@ public:
         }
     }
 
-    /** TODO
+    /**
      * Locks the corresponding bucket and writes the entry. This is a blocking write.
+     * @tparam DECREMENTING If this is set to true, the function will decrement the proc counter if the entry already exists.
      * @param key
      * @param value
      * @param depth
      */
+    template<bool DECREMENTING>
     void emplace(uint64_t key, ABDADA_TT_Info value, int32_t depth) {
         if constexpr (!use_tt) {
             return;
@@ -157,6 +159,12 @@ public:
             if (entry.key == key) {
                 assert(entry.value.depth == depth);
                 assert(value.depth == depth);
+                value.proc_number = entry.value.proc_number;
+                if constexpr (DECREMENTING) {
+                    if (value.proc_number > 0) {
+                        value.proc_number--;
+                    }
+                }
                 entry.value = value;
                 return;
             }
@@ -165,25 +173,32 @@ public:
         replace<strategy>(entries, key, value); // Try to replace an existing (possibly empty) entry.
     }
 
-    /** TODO
+    /**
      * This should ideally only be called after making sure the entry exists via the contains method.
      */
-    [[nodiscard]] Locked_TT_Info at(uint64_t key, int32_t depth) {
+    template<bool INCREMENTING>
+    [[nodiscard]] Locked_TT_Info at(uint64_t key, int32_t depth, bool exclusive) {
         auto position = pos(key, depth);
         std::lock_guard<Spin_Lock> guard(table[position].entries[0].spin_lock);
         auto & entries = table[position].entries;
         for (auto& entry : entries) {
             if (entry.key == key) {
+                if constexpr (INCREMENTING) {
+                    if (entry.value.proc_number == 0 || !exclusive) { // This node is likely getting searched
+                        entry.value.proc_number++;
+                    } // else this won't be searched because another thread already does. So don't increment proc then
+                }
                 return entry.value;
             }
         }
         return Locked_TT_Info{};
     }
 
-    /**TODO
+    /**
      * Returns true and puts the value into the third parameter reference, if such an entry exists, and false otherwise.
      */
-    [[nodiscard]] bool get_if_exists(uint64_t key, int32_t depth, ABDADA_TT_Info& info) {
+    template<bool INCREMENTING>
+    [[nodiscard]] bool get_if_exists(uint64_t key, int32_t depth, ABDADA_TT_Info& info, bool exclusive) {
         if constexpr (!use_tt) {
             return false;
         }
@@ -194,14 +209,26 @@ public:
         for (auto& entry : entries) {
             if (entry.key == key) {
                 info = entry.value;
+                if constexpr (INCREMENTING) {
+                    if (entry.value.proc_number == 0 || !exclusive) { // This node is likely getting searched
+                        entry.value.proc_number++;
+                    } // else this won't be searched because another thread already does. So don't increment proc then
+                }
                 return true;
             }
+        }
+        if (depth >= DEFER_DEPTH) { // The entry does not exist yet, but we want to search it, so create new entry
+            info.proc_number = 1; // and set the search processors to 1.
+            info.depth = depth;
+            info.type = EVALUATING;
+            info.move = NO_MOVE;
+            emplace<false>(key, info, depth);
         }
         return false;
     }
 
     /**
-     * TODO
+     *
      * @param key
      * @param depth
      * @return
@@ -230,7 +257,7 @@ public:
         Board copy(board);
         while (depth > 0) {
             Locked_TT_Info info{};
-            if (get_if_exists(copy.hashKey, depth, info)) {
+            if (get_if_exists<false>(copy.hashKey, depth, info)) {
                 Move move = info.move;
                 std::cout << convertMoveToUci(move) << " ";
                 copy.makeMove(move);
