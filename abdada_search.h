@@ -372,7 +372,7 @@ public:
         return eval;
     }*/
 
-    template<class Search_Result, bool PV_Search> // TODO implement this function
+    template<class Search_Result, bool PV_Search>
     void root_max(Eval_Type alpha, Eval_Type beta, int depth, Search_Result& result) {
         auto start = std::chrono::high_resolution_clock::now();
         nodes = 0;
@@ -390,20 +390,31 @@ public:
             std::swap(moves[0], moves[tt_move_index]); // Search the TT move first
         }
 
+        std::vector<Move> deferred_moves{};
+        deferred_moves.reserve(moves.size);
+
         Move best_move = NO_MOVE;
 
         bool search_full_window = true;
-        for (auto& move_container : moves) {
-            auto move = move_container.move;
+        for (int move_index = 0; move_index < moves.size; move_index++) {
+            Move move = moves[move_index].move;
             board.makeMove(move);
-            Eval_Type inner_eval;
+            Eval_Type inner_eval = MAX_EVAL;
             if (depth == 1) {
                 inner_eval = -q_search(-beta, -alpha);
             } else if constexpr (!PV_Search) {
                 //inner_eval = -nega_max(-beta, -alpha, depth - 1);
-            } else if (search_full_window || (inner_eval = -null_window_search(-alpha, depth - 1, true)) > alpha){
-                inner_eval = -pv_search(-beta, -alpha, depth - 1);
-                search_full_window = false;
+            } else {
+                if (!search_full_window) {
+                    inner_eval = -null_window_search(-alpha, depth - 1, true);
+                    if (inner_eval == (Eval_Type) -ON_EVALUATION) {
+                        deferred_moves.emplace_back(move);
+                    }
+                }
+                if (inner_eval > alpha){
+                    inner_eval = -pv_search(-beta, -alpha, depth - 1);
+                    search_full_window = false;
+                }
             }
             if constexpr (DEBUG_OUTPUTS) {
                 std::cout << convertMoveToUci(move) << " eval " << inner_eval << " nodes " << nodes << std::endl;
@@ -429,6 +440,44 @@ public:
                 }
             }
         }
+
+        for (Move move : deferred_moves) {
+            board.makeMove(move);
+            Eval_Type inner_eval = MAX_EVAL;
+            if constexpr (!PV_Search) {
+                //inner_eval = -nega_max(-beta, -alpha, depth - 1);
+            } else {
+                inner_eval = -null_window_search(-alpha, depth - 1, true);
+                if (inner_eval > alpha){
+                    inner_eval = -pv_search(-beta, -alpha, depth - 1);
+                }
+            }
+            if constexpr (DEBUG_OUTPUTS) {
+                std::cout << convertMoveToUci(move) << " eval " << inner_eval << " nodes " << nodes << std::endl;
+                std::cout << convertMoveToUci(move) << " ";
+                tt.print_pv(board, depth - 1);
+                tt.print_size();
+            }
+            board.unmakeMove(move);
+
+            if (inner_eval > eval) {
+                eval = inner_eval;
+                best_move = move;
+                if (eval >= beta) {
+                    break;
+                }
+                if (eval > alpha) {
+                    alpha = eval;
+                }
+
+                if (finished) {
+                    tt.decrement_proc(board.hashKey, depth); // We stop searching
+                    return;
+                }
+            }
+        }
+
+
         tt.template emplace<true>(board.hashKey, {eval, best_move, (int8_t) depth, EXACT, 0}, depth);
 
         auto end = std::chrono::high_resolution_clock::now();
