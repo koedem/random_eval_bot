@@ -483,7 +483,7 @@ public:
         auto end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> duration = end - start;
 
-        bool i_am_first = !finished.exchange(false);
+        bool i_am_first = !finished.exchange(true);
 
         if (i_am_first) { // The first thread to finish gets to write the search result
             result.nodes = nodes;
