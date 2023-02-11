@@ -14,14 +14,21 @@
  * to work. So here the unfortunate partly code duplicated version.
  */
 
+struct __attribute__((packed)) ABDADA_TT_Info {
+    Eval_Type eval;
+    Chess::Move move;
+    int8_t depth;
+    Bound_Type type;
+    std::int8_t proc_number;
+};
+
 template<TT_Strategy strategy>
 class ABDADA_TT {
 
 private:
     struct Entry {
         uint64_t key = 0;
-        Locked_TT_Info value = {};
-        std::int8_t proc_number = 0;
+        ABDADA_TT_Info value = {};
         Spin_Lock spin_lock;
 
         /**
@@ -30,7 +37,7 @@ private:
          * @return
          */
         bool operator<(Locked_TT_Info& other) const {
-            if (proc_number > 0) {  // If we are currently searching on this entry, then this should not be replaced,
+            if (value.proc_number > 0) {  // If we are currently searching on this entry, then this should not be replaced,
                 return false;       // so gets higher priority.
             }
             if (value.type == EXACT && other.type != EXACT) {
