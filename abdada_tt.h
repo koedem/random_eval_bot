@@ -194,6 +194,17 @@ public:
         return Locked_TT_Info{};
     }
 
+    void decrement_proc(uint64_t key, int32_t depth) {
+        auto position = pos(key, depth);
+        std::lock_guard<Spin_Lock> guard(table[position].entries[0].spin_lock);
+        auto & entries = table[position].entries;
+        for (auto& entry : entries) { // NOLINT(readability-use-anyofallof)
+            if (entry.key == key) {
+                entry.value.proc_number--;
+            }
+        }
+    }
+
     /**
      * Returns true and puts the value into the third parameter reference, if such an entry exists, and false otherwise.
      */
@@ -210,9 +221,10 @@ public:
             if (entry.key == key) {
                 info = entry.value;
                 if constexpr (INCREMENTING) {
-                    if (entry.value.proc_number == 0 || !exclusive) { // This node is likely getting searched
-                        entry.value.proc_number++;
-                    } // else this won't be searched because another thread already does. So don't increment proc then
+                    if (entry.value.type != EXACT // Otherwise cutoff and no search
+                        && (entry.value.proc_number == 0 || !exclusive)) { // Otherwise skip and no search
+                        entry.value.proc_number++; // If likely search, increment proc_number
+                    }
                 }
                 return true;
             }
