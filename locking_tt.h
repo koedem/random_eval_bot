@@ -32,20 +32,6 @@ struct Locked_TT_Info {
     Chess::Move move;
     int8_t depth;
     Bound_Type type;
-
-    /**
-     * We don't lock anything here, it is the users responsibility to make sure the surrounding structs are locked.
-     * @param other
-     * @return
-     */
-    bool operator<(Locked_TT_Info& other) const {
-        if (type == EXACT && other.type != EXACT) {
-            return false;
-        } else if (type != EXACT && other.type == EXACT) {
-            return true;
-        }
-        return depth < other.depth;
-    }
 };
 
 template<TT_Strategy strategy>
@@ -56,6 +42,20 @@ private:
         uint64_t key = 0;
         Locked_TT_Info value = {};
         Spin_Lock spin_lock;
+
+        /**
+         * We don't lock anything here, it is the users responsibility to make sure the surrounding structs are locked.
+         * @param other
+         * @return
+         */
+        bool operator<(Locked_TT_Info& other) const {
+            if (value.type == EXACT && other.type != EXACT) {
+                return false;
+            } else if (value.type != EXACT && other.type == EXACT) {
+                return true;
+            }
+            return value.depth < other.depth;
+        }
     };
 
     struct alignas(64) Bucket {
@@ -114,7 +114,7 @@ public:
     void replace<TWO_TWO_SPLIT>(Entry entries[entries_per_bucket], uint64_t key, Locked_TT_Info value) {
         for (int i = 0; i < 4; i++) {
             auto & entry = entries[i];
-            if (entry.value < value) { // last slot is always replace
+            if (entry < value) { // last slot is always replace
                 std::swap(entry.value, value);
                 std::swap(entry.key, key);
             }
@@ -130,7 +130,7 @@ public:
     void replace<REPLACE_LAST_ENTRY>(Entry entries[entries_per_bucket], uint64_t key, Locked_TT_Info value) {
         for (int i = 0; i < 4; i++) {
             auto & entry = entries[i];
-            if (entry.value < value || i == 3) { // last slot is always replace
+            if (entry < value || i == 3) { // last slot is always replace
                 std::swap(entry.value, value);
                 std::swap(entry.key, key);
             }
@@ -141,7 +141,7 @@ public:
     void replace<DEPTH_FIRST>(Entry entries[entries_per_bucket], uint64_t key, Locked_TT_Info value) {
         for (int i = 0; i < 4; i++) {
             auto & entry = entries[i];
-            if (entry.value < value) {
+            if (entry < value) {
                 std::swap(entry.value, value);
                 std::swap(entry.key, key);
             }
@@ -177,7 +177,7 @@ public:
     /**
      * This should ideally only be called after making sure the entry exists via the contains method.
      */
-    [[nodiscard]] Locked_TT_Info at(uint64_t key, int32_t depth) const {
+    [[nodiscard]] Locked_TT_Info at(uint64_t key, int32_t depth) {
         auto position = pos(key, depth);
         std::lock_guard<Spin_Lock> guard(table[position].entries[0].spin_lock);
         auto & entries = table[position].entries;
@@ -209,7 +209,7 @@ public:
         return false;
     }
 
-    [[nodiscard]] bool contains(uint64_t key, int32_t depth) const {
+    [[nodiscard]] bool contains(uint64_t key, int32_t depth) {
         if constexpr (!use_tt) {
             return false;
         }
