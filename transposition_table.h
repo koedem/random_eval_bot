@@ -7,7 +7,7 @@
 #include "chess-library/src/chess.hpp"
 
 enum Bound_Type : uint8_t {
-    UPPER_BOUND, LOWER_BOUND, EXACT
+    UPPER_BOUND, LOWER_BOUND, EXACT, EVALUATING
 };
 
 enum TT_Strategy {
