@@ -35,6 +35,10 @@ private:
                 return true; // "Cutoff" because another thread is already searching this node.
             }
 
+            if (tt_entry.type == EVALUATING) { // This probably means we don't have any useful info yet
+                return false;
+            }
+
             if (tt_entry.type == EXACT) { // No proc incremented
                 alpha = tt_entry.eval;
                 return true;
@@ -447,7 +451,7 @@ public:
             if constexpr (!PV_Search) {
                 //inner_eval = -nega_max(-beta, -alpha, depth - 1);
             } else {
-                inner_eval = -null_window_search(-alpha, depth - 1, true);
+                inner_eval = -null_window_search(-alpha, depth - 1, false);
                 if (inner_eval > alpha){
                     inner_eval = -pv_search(-beta, -alpha, depth - 1);
                 }
