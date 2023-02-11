@@ -214,19 +214,21 @@ public:
             return false;
         }
         auto position = pos(key, depth);
-        Spin_Lock& spin_lock = table[position].entries[0].spin_lock;
-        std::lock_guard<Spin_Lock> guard(spin_lock);
-        auto & entries = table[position].entries;
-        for (auto& entry : entries) {
-            if (entry.key == key) {
-                info = entry.value;
-                if constexpr (INCREMENTING) {
-                    if (entry.value.type != EXACT // Otherwise cutoff and no search
-                        && (entry.value.proc_number == 0 || !exclusive)) { // Otherwise skip and no search
-                        entry.value.proc_number++; // If likely search, increment proc_number
+        {
+            Spin_Lock &spin_lock = table[position].entries[0].spin_lock;
+            std::lock_guard<Spin_Lock> guard(spin_lock);
+            auto &entries = table[position].entries;
+            for (auto &entry: entries) {
+                if (entry.key == key) {
+                    info = entry.value;
+                    if constexpr (INCREMENTING) {
+                        if (entry.value.type != EXACT // Otherwise cutoff and no search
+                            && (entry.value.proc_number == 0 || !exclusive)) { // Otherwise skip and no search
+                            entry.value.proc_number++; // If likely search, increment proc_number
+                        }
                     }
+                    return true;
                 }
-                return true;
             }
         }
         if (depth >= DEFER_DEPTH) { // The entry does not exist yet, but we want to search it, so create new entry
