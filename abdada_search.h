@@ -35,26 +35,25 @@ private:
                 return true; // "Cutoff" because another thread is already searching this node.
             }
 
-            if (tt_entry.type == EVALUATING) { // This probably means we don't have any useful info yet
-                return false;
-            }
+            if (tt_entry.type != EVALUATING) { // Otherwise we have no useful info here yet
+                if (tt_entry.type == EXACT) { // No proc incremented
+                    alpha = tt_entry.eval;
+                    return true;
+                }
+                if (tt_entry.type == UPPER_BOUND) {
+                    beta = std::min(beta, tt_entry.eval);
+                } else if (tt_entry.type == LOWER_BOUND) {
+                    alpha = std::max(alpha, tt_entry.eval);
+                }
 
-            if (tt_entry.type == EXACT) { // No proc incremented
-                alpha = tt_entry.eval;
-                return true;
+                if (alpha >= beta) { // Our window is empty due to the TT hit
+                    alpha = tt_entry.eval;
+                    tt.decrement_proc(board.hashKey,
+                                      depth); // We incremented this and now skip the search, so decrement again.
+                    return true;
+                }
+                move = tt_entry.move;
             }
-            if (tt_entry.type == UPPER_BOUND) {
-                beta = std::min(beta, tt_entry.eval);
-            } else if (tt_entry.type == LOWER_BOUND) {
-                alpha = std::max(alpha, tt_entry.eval);
-            }
-
-            if (alpha >= beta) { // Our window is empty due to the TT hit
-                alpha = tt_entry.eval;
-                tt.decrement_proc(board.hashKey, depth); // We incremented this and now skip the search, so decrement again.
-                return true;
-            }
-            move = tt_entry.move;
         }
         if (move == NO_MOVE) { // If we didn't find a TT move, try from one depth earlier instead
             if (tt.template get_if_exists<false>(board.hashKey, depth - 1, tt_entry, exclusive)) {
@@ -377,14 +376,14 @@ public:
     }*/
 
     template<class Search_Result, bool PV_Search>
-    void root_max(Eval_Type alpha, Eval_Type beta, int depth, Search_Result& result) {
+    void root_max(Eval_Type alpha, Eval_Type beta, int depth, Search_Result& result, std::atomic<uint64_t>& total_node_count) {
         auto start = std::chrono::high_resolution_clock::now();
         nodes = 0;
         assert(depth > 0);
         Eval_Type eval = MIN_EVAL;
         Move tt_move = NO_MOVE;
         if (tt_probe(tt_move, alpha, beta, depth, false)) { // This can probably never happen but maybe in parallel search
-            return; // I'm claiming that if this happens, then we already have a search result from another thread so we don't need to return anything
+            return; // I'm claiming that if this happens, then we already have a search result from another thread, so we don't need to return anything
         }
 
         Movelist moves;
@@ -412,11 +411,14 @@ public:
                 if (!search_full_window) {
                     inner_eval = -null_window_search(-alpha, depth - 1, true);
                     if (inner_eval == (Eval_Type) -ON_EVALUATION) {
+                        //std::cout << "Deferring " << convertMoveToUci(move) << std::endl;
                         deferred_moves.emplace_back(move);
                     }
                 }
                 if (inner_eval > alpha){
+                    //std::cout << "Full Window " << convertMoveToUci(move) << " null window result " << inner_eval << " index " << move_index << std::endl;
                     inner_eval = -pv_search(-beta, -alpha, depth - 1);
+                    //std::cout << "Full Window " << convertMoveToUci(move) << " pv result " << inner_eval << " index " << move_index << std::endl;
                     search_full_window = false;
                 }
             }
@@ -440,6 +442,7 @@ public:
 
                 if (finished) {
                     tt.decrement_proc(board.hashKey, depth); // We stop searching
+                    total_node_count += nodes;
                     return;
                 }
             }
@@ -476,6 +479,7 @@ public:
 
                 if (finished) {
                     tt.decrement_proc(board.hashKey, depth); // We stop searching
+                    total_node_count += nodes;
                     return;
                 }
             }
@@ -496,6 +500,7 @@ public:
             result.eval = eval;
             result.depth = depth;
         }
+        total_node_count += nodes;
     }
 };
 
@@ -527,14 +532,16 @@ public:
             Eval_Type alpha = MIN_EVAL; // Don't use INT16_MIN because negating it causes an overflow
             Eval_Type beta = MAX_EVAL;
             finished = false;
+            std::atomic<uint64_t > node_count = 0;
             for (size_t i = 0; i < num_threads; i++) {
                 auto func = std::bind(&ABDADA_Thread<Q_SEARCH, strategy>::template root_max<Search_Result, PV_Search>,
-                                      &searchers[i], alpha, beta, depth, std::ref(result));
+                                      &searchers[i], alpha, beta, depth, std::ref(result), std::ref(node_count));
                 search_threads.emplace_back(func);
             }
             for (auto &thread: search_threads) {
                 thread.join();
             }
+            result.nodes = node_count;
             result.print_table(iteration);
         }
         return result;
