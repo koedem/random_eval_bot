@@ -542,7 +542,7 @@ public:
                 thread.join();
             }
             result.nodes = node_count;
-            result.print_table(iteration);
+            result.print_table(iteration, num_threads);
         }
         return result;
     }

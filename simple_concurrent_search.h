@@ -387,7 +387,7 @@ public:
             for (auto &thread: search_threads) {
                 thread.join();
             }
-            result.print_table(iteration);
+            result.print_table(iteration, num_threads);
         }
         return result;
     }
