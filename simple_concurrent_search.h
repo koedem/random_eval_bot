@@ -277,7 +277,7 @@ public:
     }
 
     template<class Search_Result, bool PV_Search>
-    void root_max(Eval_Type alpha, Eval_Type beta, int depth, Search_Result& result) {
+    void root_max(Eval_Type alpha, Eval_Type beta, int depth, Search_Result& result, std::atomic<uint64_t>& total_node_count) {
         auto start = std::chrono::high_resolution_clock::now();
         nodes = 0;
         assert(depth > 0);
@@ -328,6 +328,7 @@ public:
                 }
 
                 if (finished) {
+                    total_node_count += nodes;
                     return;
                 }
             }
@@ -342,12 +343,12 @@ public:
         // seconds. However, for depth 10 and much more so depth 11 this leads to a big speedup.
 
         if (i_am_first) { // The first thread to finish gets to write the search result
-            result.nodes = nodes;
             result.duration = duration.count();
             result.move = best_move;
             result.eval = eval;
             result.depth = depth;
         }
+        total_node_count += nodes;
     }
 };
 
@@ -379,14 +380,16 @@ public:
             Eval_Type alpha = MIN_EVAL;
             Eval_Type beta = MAX_EVAL;
             finished = false;
+            std::atomic<uint64_t > node_count = 0;
             for (size_t i = 0; i < num_threads; i++) {
                 auto func = std::bind(&Search_Thread<Q_SEARCH, strategy>::template root_max<Search_Result, PV_Search>,
-                                      &searchers[i], alpha, beta, depth, std::ref(result));
+                                      &searchers[i], alpha, beta, depth, std::ref(result), std::ref(node_count));
                 search_threads.emplace_back(func);
             }
             for (auto &thread: search_threads) {
                 thread.join();
             }
+            result.nodes = node_count;
             result.print_table(iteration, num_threads);
         }
         return result;

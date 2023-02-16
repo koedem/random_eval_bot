@@ -494,7 +494,6 @@ public:
         bool i_am_first = !finished.exchange(true);
 
         if (i_am_first) { // The first thread to finish gets to write the search result
-            result.nodes = nodes;
             result.duration = duration.count();
             result.move = best_move;
             result.eval = eval;
