@@ -266,6 +266,7 @@ public:
             for (Entry& entry : bucket.entries) {
                 entry.key = 0;
                 entry.value = {};
+                entry.spin_lock = false; // Just in case
             }
         }
     }
