@@ -156,6 +156,10 @@ void change_seed() {
     seed++;
 }
 
+void reset_seed() {
+    seed = 0;
+}
+
 /**
  * A bunch of testing went into this pseudo random evaluation function. The chess board provides a hash key, the Zobrist
  * key that is used in the actual hash function. So the natural pseudo random evaluation would be taking simply the low
