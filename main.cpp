@@ -69,6 +69,7 @@ struct Search_Result {
 template<class Transposition_Table, class Search>
 void run_tests(Board& board, std::size_t hash_size, std::size_t max_threads, int depth_limit, int number_of_iterations) {
     Transposition_Table tt(hash_size);
+    reset_seed();
     for (int iteration = 0; iteration < number_of_iterations; iteration++) {
         for (std::size_t num_threads = 1; num_threads <= max_threads; num_threads++) {
             Search search(num_threads, board, tt);
@@ -76,27 +77,44 @@ void run_tests(Board& board, std::size_t hash_size, std::size_t max_threads, int
             search.template parallel_search<Search_Result, true>(up_to_depth, iteration);
             tt.clear();
         }
+        change_seed();
+    }
+}
+
+enum Algo { LAZY, ABDADA };
+
+void setup_tests(Board& board, int hash_size, Algo algo, std::size_t max_threads, int depth, int iterations) {
+    static std::string algos[2] = { "lazy", "abdada" };
+    std::string file_name = "./pos1_" + std::to_string(hash_size) + "_" + algos[algo] +  ".txt";
+    out = std::ofstream(file_name);
+    print_headline();
+    if (algo == LAZY) {
+        run_tests<Locking_TT<REPLACE_LAST_ENTRY>, Lazy_SMP<true, REPLACE_LAST_ENTRY>>(board, hash_size, max_threads,
+                                                                                      depth, iterations);
+    } else if (algo == ABDADA) {
+        run_tests<ABDADA_TT<REPLACE_LAST_ENTRY>, ABDADA_Search<true, REPLACE_LAST_ENTRY>>(board, hash_size, max_threads,
+                                                                                      depth, iterations);
     }
 }
 
 int main() {
     Board board;
 
-    int depth = 8;
+    int depth = 10;
     std::size_t max_threads = std::thread::hardware_concurrency();
     int hash_size = 16384;
-    int iterations = 2;
+    int iterations = 20;
 
-    out = std::ofstream("./pos1_16384_abdada.txt");
-    print_headline();
-    run_tests<ABDADA_TT<REPLACE_LAST_ENTRY>,ABDADA_Search<true, REPLACE_LAST_ENTRY>>(board, hash_size, max_threads, depth, iterations);
-
+    hash_size = 16384;
+    setup_tests(board, hash_size, ABDADA, max_threads, depth, iterations);
     hash_size = 1024;
-    out = std::ofstream("./pos1_1024_abdada.txt");
-    print_headline();
-    run_tests<ABDADA_TT<REPLACE_LAST_ENTRY>,ABDADA_Search<true, REPLACE_LAST_ENTRY>>(board, hash_size, max_threads, depth, iterations);
+    setup_tests(board, hash_size, ABDADA, max_threads, depth, iterations);
 
-
-    //Lockless_TT<REPLACE_LAST_ENTRY> lockless(128);
+    hash_size = 64;
+    setup_tests(board, hash_size, LAZY, max_threads, depth, iterations);
+    hash_size = 1024;
+    setup_tests(board, hash_size, LAZY, max_threads, depth, iterations);
+    hash_size = 16384;
+    setup_tests(board, hash_size, LAZY, max_threads, depth, iterations);
     return 0;
 }
