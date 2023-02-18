@@ -5,6 +5,7 @@
 #include "simple_concurrent_search.h"
 #include "abdada_tt.h"
 #include "abdada_search.h"
+#include "simplified_abdada.h"
 
 std::ofstream out;
 
@@ -81,11 +82,11 @@ void run_tests(Board& board, std::size_t hash_size, std::size_t max_threads, int
     }
 }
 
-enum Algo { LAZY, ABDADA };
+enum Algo { LAZY, ABDADA, SIMPLE_ABDADA };
 
 void setup_tests(Board& board, int hash_size, Algo algo, std::size_t max_threads, int depth, int iterations) {
-    static std::string algos[2] = { "lazy", "abdada" };
-    std::string file_name = "./pos1_" + std::to_string(hash_size) + "_" + algos[algo] +  ".txt";
+    static std::string algos[3] = { "lazy", "abdada", "simple-abdada" };
+    std::string file_name = "./pos1_" + std::to_string(hash_size) + "_" + algos[algo] +  "_d" + std::to_string(depth) + "_no_qs.txt";
     out = std::ofstream(file_name);
     print_headline();
     if (algo == LAZY) {
@@ -94,6 +95,9 @@ void setup_tests(Board& board, int hash_size, Algo algo, std::size_t max_threads
     } else if (algo == ABDADA) {
         run_tests<ABDADA_TT<REPLACE_LAST_ENTRY>, ABDADA_Search<true, REPLACE_LAST_ENTRY>>(board, hash_size, max_threads,
                                                                                       depth, iterations);
+    } else if (algo == SIMPLE_ABDADA) {
+        run_tests<Locking_TT<REPLACE_LAST_ENTRY>, Simplified_ABDADA_Search<true, REPLACE_LAST_ENTRY>>(board, hash_size, max_threads,
+                                                                                          depth, iterations);
     }
 }
 
@@ -106,15 +110,21 @@ int main() {
     int iterations = 20;
 
     hash_size = 16384;
+    setup_tests(board, hash_size, SIMPLE_ABDADA, max_threads, depth, iterations);
+    hash_size = 16384;
+    setup_tests(board, hash_size, ABDADA, max_threads, depth, iterations);
+    hash_size = 16384;
+    setup_tests(board, hash_size, LAZY, max_threads, depth, iterations);
+
+    /*hash_size = 1024;
     setup_tests(board, hash_size, ABDADA, max_threads, depth, iterations);
     hash_size = 1024;
+    setup_tests(board, hash_size, LAZY, max_threads, depth, iterations);
+
+    hash_size = 64;
     setup_tests(board, hash_size, ABDADA, max_threads, depth, iterations);
 
     hash_size = 64;
-    setup_tests(board, hash_size, LAZY, max_threads, depth, iterations);
-    hash_size = 1024;
-    setup_tests(board, hash_size, LAZY, max_threads, depth, iterations);
-    hash_size = 16384;
-    setup_tests(board, hash_size, LAZY, max_threads, depth, iterations);
+    setup_tests(board, hash_size, LAZY, max_threads, depth, iterations);*/
     return 0;
 }
