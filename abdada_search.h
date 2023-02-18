@@ -24,13 +24,14 @@ private:
      * @return true if the TT probe produced a cutoff, i.e. the search can be skipped, and the TT entry value,
      * stored in alpha, can be returned.
      */
-    bool tt_probe(Move& move, Eval_Type& alpha, Eval_Type& beta, int depth, bool exclusive) {
+    bool tt_probe_skip_search(Move& move, Eval_Type& alpha, Eval_Type& beta, int depth, bool exclusive) {
         ABDADA_TT_Info tt_entry{};
         if (tt.template get_if_exists<true>(board.hashKey, depth, tt_entry, exclusive)) {
             assert(tt_entry.depth == depth);
             assert(tt_entry.eval != ON_EVALUATION);
 
             if (exclusive && tt_entry.proc_number > 0) { // No proc incremented
+                assert(tt_entry.type == EVALUATING);
                 alpha = ON_EVALUATION;
                 return true; // "Cutoff" because another thread is already searching this node.
             }
@@ -158,7 +159,7 @@ public:
         Eval_Type eval = MIN_EVAL;
         Move tt_move = NO_MOVE;
         Eval_Type alpha = beta - 1;
-        if (tt_probe(tt_move, alpha, beta, depth, exclusive)) { // I.e. if cutoff
+        if (tt_probe_skip_search(tt_move, alpha, beta, depth, exclusive)) { // I.e. if cutoff
             return alpha; // TT entry value is put here
         }
 
@@ -179,7 +180,7 @@ public:
             Eval_Type inner_eval;
             if (depth > 1) {
                 inner_eval = -null_window_search(-beta + 1, depth - 1, move_index != 0);
-                if (inner_eval == (Eval_Type) -ON_EVALUATION) {
+                if (inner_eval == (Eval_Type) -ON_EVALUATION) { // The overflow behavior here is questionable but works for these values
                     deferred_moves.emplace_back(move);
                 }
             } else {
@@ -201,7 +202,7 @@ public:
             }
         }
 
-        for (Move move : deferred_moves) {
+        for (Move move : deferred_moves) { // In particular no leaf is deferred so there's always a search to be done here
             board.makeMove(move);
             Eval_Type inner_eval;
             inner_eval = -null_window_search(-beta + 1, depth - 1, false);
@@ -229,7 +230,7 @@ public:
     Eval_Type pv_search(Eval_Type alpha, Eval_Type beta, int depth) {
         Eval_Type eval = MIN_EVAL;
         Move tt_move = NO_MOVE;
-        if (tt_probe(tt_move, alpha, beta, depth, false)) { // I.e. if cutoff
+        if (tt_probe_skip_search(tt_move, alpha, beta, depth, false)) { // I.e. if cutoff
             return alpha; // TT entry value is put here
         }
 
@@ -382,7 +383,7 @@ public:
         assert(depth > 0);
         Eval_Type eval = MIN_EVAL;
         Move tt_move = NO_MOVE;
-        if (tt_probe(tt_move, alpha, beta, depth, false)) { // This can probably never happen but maybe in parallel search
+        if (tt_probe_skip_search(tt_move, alpha, beta, depth, false)) { // This can probably never happen but maybe in parallel search
             return; // I'm claiming that if this happens, then we already have a search result from another thread, so we don't need to return anything
         }
 
@@ -411,14 +412,22 @@ public:
                 if (!search_full_window) {
                     inner_eval = -null_window_search(-alpha, depth - 1, true);
                     if (inner_eval == (Eval_Type) -ON_EVALUATION) {
-                        //std::cout << "Deferring " << convertMoveToUci(move) << std::endl;
+                        if constexpr (DEBUG_OUTPUTS) {
+                            std::cout << "Deferring " << convertMoveToUci(move) << std::endl;
+                        }
                         deferred_moves.emplace_back(move);
                     }
                 }
                 if (inner_eval > alpha){
-                    //std::cout << "Full Window " << convertMoveToUci(move) << " null window result " << inner_eval << " index " << move_index << std::endl;
+                    if constexpr (DEBUG_OUTPUTS) {
+                        std::cout << "Full Window " << convertMoveToUci(move) << " null window result " << inner_eval
+                                  << " index " << move_index << std::endl;
+                    }
                     inner_eval = -pv_search(-beta, -alpha, depth - 1);
-                    //std::cout << "Full Window " << convertMoveToUci(move) << " pv result " << inner_eval << " index " << move_index << std::endl;
+                    if constexpr (DEBUG_OUTPUTS) {
+                        std::cout << "Full Window " << convertMoveToUci(move) << " pv result " << inner_eval
+                                  << " index " << move_index << std::endl;
+                    }
                     search_full_window = false;
                 }
             }
@@ -528,7 +537,7 @@ public:
         Search_Result result;
         for (int depth = 1; depth <= up_to_depth; depth++) {
             std::vector<std::thread> search_threads;
-            Eval_Type alpha = MIN_EVAL; // Don't use INT16_MIN because negating it causes an overflow
+            Eval_Type alpha = MIN_EVAL;
             Eval_Type beta = MAX_EVAL;
             finished = false;
             std::atomic<uint64_t > node_count = 0;
