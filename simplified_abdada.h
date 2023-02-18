@@ -222,7 +222,7 @@ public:
             } else {
                 inner_eval = -nw_q_search(-beta + 1);
             }
-            finished_search(board.hashKey, depth); // Call this before we unmove and change the hashkey.
+            finished_search(board.hashKey, depth - 1); // Call this before we unmove and change the hashkey.
             board.unmakeMove(move);
 
             if (inner_eval > eval) {
@@ -293,12 +293,12 @@ public:
             if (depth == 1) {
                 inner_eval = -q_search(-beta, -alpha);
             } else if (search_full_window || (inner_eval = -null_window_search(-alpha, depth - 1)) > alpha) {
-                finished_search(board.hashKey, depth); // Full window search means we want help from other threads; this will get called again below but that's fine
+                finished_search(board.hashKey, depth - 1); // Full window search means we want help from other threads; this will get called again below but that's fine
 
                 inner_eval = -pv_search(-beta, -alpha, depth - 1);
                 search_full_window = false;
             }
-            finished_search(board.hashKey, depth); // Call this before we unmove and change the hashkey.
+            finished_search(board.hashKey, depth - 1); // Call this before we unmove and change the hashkey.
             board.unmakeMove(move);
 
             if (inner_eval > eval) {
@@ -383,7 +383,7 @@ public:
             } else {
                 inner_eval = -q_search(-beta, -alpha);
             }
-            finished_search(board.hashKey, depth); // Call this before we unmove and change the hashkey.
+            finished_search(board.hashKey, depth - 1); // Call this before we unmove and change the hashkey.
             board.unmakeMove(move);
 
             if (inner_eval > eval) {
@@ -471,7 +471,7 @@ public:
             } else if constexpr (!PV_Search) {
                 inner_eval = -nega_max(-beta, -alpha, depth - 1);
             } else if (search_full_window || (inner_eval = -null_window_search(-alpha, depth - 1)) > alpha) {
-                finished_search(board.hashKey, depth); // Full window search means we want help from other threads; this will get called again below but that's fine
+                finished_search(board.hashKey, depth - 1); // Full window search means we want help from other threads; this will get called again below but that's fine
                 inner_eval = -pv_search(-beta, -alpha, depth - 1);
                 search_full_window = false;
             }
@@ -481,7 +481,7 @@ public:
                 tt.print_pv(board, depth - 1);
                 tt.print_size();
             }
-            finished_search(board.hashKey, depth); // Full window search means we want help from other threads; this will get called again below but that's fine
+            finished_search(board.hashKey, depth - 1); // Full window search means we want help from other threads; this will get called again below but that's fine
             board.unmakeMove(move);
 
             if (inner_eval > eval) {
