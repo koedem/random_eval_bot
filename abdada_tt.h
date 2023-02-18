@@ -214,7 +214,7 @@ public:
             return false;
         }
         auto position = pos(key, depth);
-        {
+        { // Put the lockguard in an inner scope because if we emplace a new entry below, we reacquire the lock there
             Spin_Lock &spin_lock = table[position].entries[0].spin_lock;
             std::lock_guard<Spin_Lock> guard(spin_lock);
             auto &entries = table[position].entries;
@@ -231,12 +231,14 @@ public:
                 }
             }
         }
-        if (depth >= DEFER_DEPTH) { // The entry does not exist yet, but we want to search it, so create new entry
-            info.proc_number = 1; // and set the search processors to 1.
-            info.depth = depth;
-            info.type = EVALUATING;
-            info.move = NO_MOVE;
-            emplace<false>(key, info, depth);
+        if constexpr (INCREMENTING) { // I.e. we are planning to search this
+            if (depth >= DEFER_DEPTH) { // The entry does not exist yet, but we want to search it, so create new entry
+                info.proc_number = 1; // and set the search processors to 1.
+                info.depth = depth;
+                info.type = EVALUATING;
+                info.move = NO_MOVE;
+                emplace<false>(key, info, depth);
+            }
         }
         return false;
     }
