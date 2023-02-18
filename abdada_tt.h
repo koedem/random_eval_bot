@@ -162,12 +162,14 @@ public:
                 assert(value.depth == depth);
                 value.proc_number = entry.value.proc_number; // We will write the value to that position so remember the proc count
                 if constexpr (DECREMENTING) {
-                    if (value.proc_number > 0) {
-                        value.proc_number--;
-                        while (i < 3 && entries[i] < entries[i + 1].value) { // Decrementing the proc counter decreases our priority
-                            std::swap(entries[i].value, entries[i + 1].value); // So we should move down as far as possible to not
-                            std::swap(entries[i].key, entries[i + 1].key); // replace higher priority entries instead of us
-                            i++;
+                    if (depth >= DEFER_DEPTH) {
+                        if (value.proc_number > 0) {
+                            value.proc_number--;
+                            while (i < 3 && entries[i] < entries[i + 1].value) { // Decrementing the proc counter decreases our priority
+                                std::swap(entries[i].value, entries[i + 1].value); // So we should move down as far as possible to not
+                                std::swap(entries[i].key, entries[i + 1].key); // replace higher priority entries instead of us
+                                i++;
+                            }
                         }
                     }
                 }
@@ -189,7 +191,7 @@ public:
         auto & entries = table[position].entries;
         for (auto& entry : entries) {
             if (entry.key == key) {
-                if constexpr (INCREMENTING) {
+                if constexpr (INCREMENTING) { // TODO defer depth
                     if (entry.value.proc_number == 0 || !exclusive) { // This node is likely getting searched
                         entry.value.proc_number++;
                     } // else this won't be searched because another thread already does. So don't increment proc then
@@ -235,13 +237,17 @@ public:
                 if (entry.key == key) {
                     info = entry.value;
                     if constexpr (INCREMENTING) {
-                        if (entry.value.type != EXACT // Otherwise cutoff and no search
-                            && (entry.value.proc_number == 0 || !exclusive)) { // Otherwise skip and no search
-                            entry.value.proc_number++; // If likely search, increment proc_number
-                            while (i > 0 && entries[i - 1] < entries[i].value) { // Incrementing the proc counter increases our priority
-                                std::swap(entries[i - 1].value, entries[i].value); // So we should move up as far as possible to not get replaced
-                                std::swap(entries[i - 1].key, entries[i].key);
-                                i--;
+                        if (depth >= DEFER_DEPTH) { // Otherwise we don't want to change proc_count
+                            if (entry.value.type != EXACT // Otherwise cutoff and no search
+                                && (entry.value.proc_number == 0 || !exclusive)) { // Otherwise skip and no search
+                                entry.value.proc_number++; // If likely search, increment proc_number
+                                while (i > 0 && entries[i - 1] < entries[i].value) {
+                                    // Incrementing the proc counter increases our priority
+                                    // So we should move up as far as possible to not get replaced
+                                    std::swap(entries[i - 1].value, entries[i].value);
+                                    std::swap(entries[i - 1].key, entries[i].key);
+                                    i--;
+                                }
                             }
                         }
                     }
