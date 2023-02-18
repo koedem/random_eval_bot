@@ -155,14 +155,20 @@ public:
         Spin_Lock& spin_lock = table[position].entries[0].spin_lock;
         std::lock_guard<Spin_Lock> guard(spin_lock);
         auto & entries = table[position].entries;
-        for (auto & entry : entries) { // Check if the entry already exists
+        for (int i = 0; i < 4; i++) { // Check if the entry already exists
+            auto & entry = entries[i];
             if (entry.key == key) {
                 assert(entry.value.depth == depth);
                 assert(value.depth == depth);
-                value.proc_number = entry.value.proc_number;
+                value.proc_number = entry.value.proc_number; // We will write the value to that position so remember the proc count
                 if constexpr (DECREMENTING) {
                     if (value.proc_number > 0) {
                         value.proc_number--;
+                        while (i < 3 && entries[i] < entries[i + 1].value) { // Decrementing the proc counter decreases our priority
+                            std::swap(entries[i].value, entries[i + 1].value); // So we should move down as far as possible to not
+                            std::swap(entries[i].key, entries[i + 1].key); // replace higher priority entries instead of us
+                            i++;
+                        }
                     }
                 }
                 entry.value = value;
@@ -173,7 +179,7 @@ public:
         replace<strategy>(entries, key, value); // Try to replace an existing (possibly empty) entry.
     }
 
-    /**
+    /** TODO if ever used this should probably be looked at again
      * This should ideally only be called after making sure the entry exists via the contains method.
      */
     template<bool INCREMENTING>
@@ -198,9 +204,15 @@ public:
         auto position = pos(key, depth);
         std::lock_guard<Spin_Lock> guard(table[position].entries[0].spin_lock);
         auto & entries = table[position].entries;
-        for (auto& entry : entries) { // NOLINT(readability-use-anyofallof)
+        for (int i = 0; i < 4; i++) { // NOLINT(readability-use-anyofallof)
+            auto& entry = entries[i];
             if (entry.key == key) {
                 entry.value.proc_number--;
+                while (i < 3 && entries[i] < entries[i + 1].value) { // Decrementing the proc counter decreases our priority
+                    std::swap(entries[i].value, entries[i + 1].value); // So we should move down as far as possible to not
+                    std::swap(entries[i].key, entries[i + 1].key); // replace higher priority entries instead of us
+                    i++;
+                }
             }
         }
     }
@@ -218,13 +230,19 @@ public:
             Spin_Lock &spin_lock = table[position].entries[0].spin_lock;
             std::lock_guard<Spin_Lock> guard(spin_lock);
             auto &entries = table[position].entries;
-            for (auto &entry: entries) {
+            for (int i = 0; i < 4; i++) {
+                auto &entry = entries[i];
                 if (entry.key == key) {
                     info = entry.value;
                     if constexpr (INCREMENTING) {
                         if (entry.value.type != EXACT // Otherwise cutoff and no search
                             && (entry.value.proc_number == 0 || !exclusive)) { // Otherwise skip and no search
                             entry.value.proc_number++; // If likely search, increment proc_number
+                            while (i > 0 && entries[i - 1] < entries[i].value) { // Incrementing the proc counter increases our priority
+                                std::swap(entries[i - 1].value, entries[i].value); // So we should move up as far as possible to not get replaced
+                                std::swap(entries[i - 1].key, entries[i].key);
+                                i--;
+                            }
                         }
                     }
                     return true;
