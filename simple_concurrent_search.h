@@ -61,7 +61,7 @@ private:
             // Get a random index of the array past the current index.
             // ... The argument is an exclusive bound.
             //     It will not go past the array's end.
-            int randomValue = i + (mt() % (moves.size - i)); // TODO, can we get rid of this mod?
+            int randomValue = i + (mt() % (moves.size - i)); // One could get rid of this mod but it doesn't appear to be a slowdown currently
             // Swap the random element with the present element.
             auto randomElement = moves[randomValue];
             moves[randomValue] = moves[i];
@@ -152,7 +152,8 @@ public:
 
         Locked_TT_Info entry{eval, tt_move, (int8_t) depth, UPPER_BOUND}; // If we don't find a move, keep the old TT move
         Movelist moves;
-        generate_shuffled_moves<ALL>(moves);
+        generate_shuffled_moves<ALL>(moves); // We could stop shuffling at low enough depth; won't gain much speedup,
+                                             // but if we had proper move ordering it might produce faster cutoffs
         int tt_move_index = moves.find(tt_move);
         if (tt_move_index > 0) {
             std::swap(moves[0], moves[tt_move_index]); // Search the TT move first
