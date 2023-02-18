@@ -55,7 +55,7 @@ private:
     template<Movetype TYPE>
     void generate_shuffled_moves(Movelist& moves) {
         Movegen::legalmoves<TYPE>(board, moves);
-        thread_local static std::mt19937 mt;
+        thread_local static std::mt19937 mt(seed);
 
         for (int i = 0; i < moves.size; i++) {
             // Get a random index of the array past the current index.
