@@ -84,9 +84,15 @@ void run_tests(Board& board, std::size_t hash_size, std::size_t max_threads, int
 
 enum Algo { LAZY, ABDADA, SIMPLE_ABDADA };
 
-void setup_tests(Board& board, int hash_size, Algo algo, std::size_t max_threads, int depth, int iterations) {
+void setup_tests(int position, int hash_size, Algo algo, std::size_t max_threads, int depth, int iterations) {
     static std::string algos[3] = { "lazy", "abdada", "simple-abdada" };
-    std::string file_name = "./pos1_" + std::to_string(hash_size) + "_" + algos[algo] +  "_d" + std::to_string(depth) + "_no_qs.txt";
+    static std::string positions[4] = { "", "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+                                        "r1bq1rk1/1pp2pbn/3p2p1/p1nPp1Pp/2P1P2P/2N1BP2/PP2B3/R2QK1NR w KQ - 1 12",
+                                        "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - -"};
+    Board board;
+    board.applyFen(positions[position]);
+
+    std::string file_name = "./pos" + std::to_string(position) + "_" + std::to_string(hash_size) + "_" + algos[algo] +  "_d" + std::to_string(depth) + ".txt";
     out = std::ofstream(file_name);
     print_headline();
     if (algo == LAZY) {
@@ -102,29 +108,38 @@ void setup_tests(Board& board, int hash_size, Algo algo, std::size_t max_threads
 }
 
 int main() {
-    Board board;
-
     int depth = 10;
     std::size_t max_threads = std::thread::hardware_concurrency();
     int hash_size = 16384;
-    int iterations = 20;
+    int iterations = 10;
+    int position = 1;
 
     hash_size = 16384;
-    setup_tests(board, hash_size, SIMPLE_ABDADA, max_threads, depth, iterations);
-    hash_size = 16384;
-    setup_tests(board, hash_size, ABDADA, max_threads, depth, iterations);
-    hash_size = 16384;
-    setup_tests(board, hash_size, LAZY, max_threads, depth, iterations);
-
-    /*hash_size = 1024;
-    setup_tests(board, hash_size, ABDADA, max_threads, depth, iterations);
+    setup_tests(position, hash_size, ABDADA, max_threads, depth, iterations);
+    setup_tests(position, hash_size, SIMPLE_ABDADA, max_threads, depth, iterations);
+    setup_tests(position, hash_size, LAZY, max_threads, depth, iterations);
     hash_size = 1024;
-    setup_tests(board, hash_size, LAZY, max_threads, depth, iterations);
-
+    setup_tests(position, hash_size, ABDADA, max_threads, depth, iterations);
+    setup_tests(position, hash_size, SIMPLE_ABDADA, max_threads, depth, iterations);
+    setup_tests(position, hash_size, LAZY, max_threads, depth, iterations);
     hash_size = 64;
-    setup_tests(board, hash_size, ABDADA, max_threads, depth, iterations);
+    setup_tests(position, hash_size, ABDADA, max_threads, depth, iterations);
+    setup_tests(position, hash_size, SIMPLE_ABDADA, max_threads, depth, iterations);
+    setup_tests(position, hash_size, LAZY, max_threads, depth, iterations);
 
-    hash_size = 64;
-    setup_tests(board, hash_size, LAZY, max_threads, depth, iterations);*/
+    position = 2;
+    depth = 7;
+    hash_size = 16384;
+    setup_tests(position, hash_size, ABDADA, max_threads, depth, iterations);
+    setup_tests(position, hash_size, SIMPLE_ABDADA, max_threads, depth, iterations);
+    setup_tests(position, hash_size, LAZY, max_threads, depth, iterations);
+
+    position = 3;
+    depth = 12;
+    hash_size = 16384;
+    setup_tests(position, hash_size, ABDADA, max_threads, depth, iterations);
+    setup_tests(position, hash_size, SIMPLE_ABDADA, max_threads, depth, iterations);
+    setup_tests(position, hash_size, LAZY, max_threads, depth, iterations);
+
     return 0;
 }
