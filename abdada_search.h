@@ -119,6 +119,9 @@ public:
                     alpha = q_eval;
                 }
             }
+            if (finished) { // If someone else already completed the search there is no reason for us to continue
+                return q_eval;
+            }
         }
 
         return q_eval;
@@ -149,6 +152,9 @@ public:
                 if (q_eval >= beta) {
                     break;
                 }
+            }
+            if (finished) { // If someone else already completed the search there is no reason for us to continue
+                return q_eval;
             }
         }
 
@@ -277,11 +283,11 @@ public:
                     alpha = eval;
                     entry.type = EXACT; // We raised alpha, so it's no longer a lower bound, either exact or upper bound
                 }
+            }
 
-                if (finished) { // If someone else already completed the search there is no reason for us to continue
-                    tt.decrement_proc(board.hashKey, depth); // We stop searching
-                    return eval;
-                }
+            if (finished) { // If someone else already completed the search there is no reason for us to continue
+                tt.decrement_proc(board.hashKey, depth); // We stop searching
+                return eval;
             }
         }
 
@@ -304,11 +310,11 @@ public:
                     alpha = eval;
                     entry.type = EXACT; // We raised alpha, so it's no longer a lower bound, either exact or upper bound
                 }
+            }
 
-                if (finished) { // If someone else already completed the search there is no reason for us to continue
-                    tt.decrement_proc(board.hashKey, depth); // We stop searching
-                    return eval;
-                }
+            if (finished) { // If someone else already completed the search there is no reason for us to continue
+                tt.decrement_proc(board.hashKey, depth); // We stop searching
+                return eval;
             }
         }
 
@@ -378,7 +384,6 @@ public:
 
     template<class Search_Result, bool PV_Search>
     void root_max(Eval_Type alpha, Eval_Type beta, int depth, Search_Result& result, std::atomic<uint64_t>& total_node_count) {
-        auto start = std::chrono::high_resolution_clock::now();
         nodes = 0;
         assert(depth > 0);
         Eval_Type eval = MIN_EVAL;
@@ -448,12 +453,12 @@ public:
                 if (eval > alpha) {
                     alpha = eval;
                 }
+            }
 
-                if (finished) {
-                    tt.decrement_proc(board.hashKey, depth); // We stop searching
-                    total_node_count += nodes;
-                    return;
-                }
+            if (finished) {
+                tt.decrement_proc(board.hashKey, depth); // We stop searching
+                total_node_count += nodes;
+                return;
             }
         }
 
@@ -485,25 +490,21 @@ public:
                 if (eval > alpha) {
                     alpha = eval;
                 }
+            }
 
-                if (finished) {
-                    tt.decrement_proc(board.hashKey, depth); // We stop searching
-                    total_node_count += nodes;
-                    return;
-                }
+            if (finished) {
+                tt.decrement_proc(board.hashKey, depth); // We stop searching
+                total_node_count += nodes;
+                return;
             }
         }
 
 
         tt.template emplace<true>(board.hashKey, {eval, best_move, (int8_t) depth, EXACT, 0}, depth);
 
-        auto end = std::chrono::high_resolution_clock::now();
-        std::chrono::duration<double> duration = end - start;
-
         bool i_am_first = !finished.exchange(true);
 
         if (i_am_first) { // The first thread to finish gets to write the search result
-            result.duration = duration.count();
             result.move = best_move;
             result.eval = eval;
             result.depth = depth;
@@ -541,6 +542,7 @@ public:
             Eval_Type beta = MAX_EVAL;
             finished = false;
             std::atomic<uint64_t > node_count = 0;
+            auto start = std::chrono::high_resolution_clock::now();
             for (size_t i = 0; i < num_threads; i++) {
                 auto func = std::bind(&ABDADA_Thread<Q_SEARCH, strategy>::template root_max<Search_Result, PV_Search>,
                                       &searchers[i], alpha, beta, depth, std::ref(result), std::ref(node_count));
@@ -549,6 +551,10 @@ public:
             for (auto &thread: search_threads) {
                 thread.join();
             }
+            auto end = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double> duration = end - start;
+
+            result.duration = duration.count();
             result.nodes = node_count;
             result.print_table(iteration, num_threads);
         }
