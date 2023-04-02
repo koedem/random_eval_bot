@@ -19,7 +19,7 @@ struct Search_Result {
                   << " time " << duration << " nps " << (nodes / duration) << std::endl;
     }
 
-    void print_table(int iteration, int num_threads) const {
+    void print_table(int iteration) const {
         std::cout << iteration << "\t" << depth << "\t" << duration << "\t" << (nodes / duration) << "\t" << eval
                   << "\t" << nodes << "\t";
 
@@ -27,31 +27,53 @@ struct Search_Result {
 
     void print_uci() const {
         int millis = (int) (duration * 1000);
-        std::cout << "info depth " << depth << " score cp " << eval << " time " << millis << " nodes " << nodes
-                  << " nps " << (nodes / (millis * 1000 + 1)) << " pv ";
+        std::cout << "info depth " << depth << " score cp " << eval / 100 << " time " << millis << " nodes " << nodes
+                  << " nps " << (nodes / (millis / 1000 + 1)) << " pv ";
     }
 };
 
 class UCI {
     Board board;
-    Locking_TT<REPLACE_LAST_ENTRY> table{8192};
+    Locking_TT<REPLACE_LAST_ENTRY> table{256};
 
 public:
     void uci_loop() {
         std::string command;
         constexpr bool q_search = false;
         while (getline(std::cin, command), command != "quit") {
-            if (command.starts_with("position fen ")) {
+            if (command == "uci") {
+                std::cout << "uciok" << std::endl;
+            } else if (command == "isready") {
+                std::cout << "readyok" << std::endl;
+            } else if (command == "ucinewgame") {
+                table.clear();
+                board.applyFen(DEFAULT_POS);
+            } else if (command.starts_with("position fen ")) {
+                table.clear();
                 board.eval();
                 board.applyFen(command.substr(13));
                 std::cout << board;
+            } else if (command.starts_with("position startpos moves ")) {
+                table.clear();
+                board.applyFen(DEFAULT_POS);
+                auto moves = splitInput(command.substr(24));
+                for (auto move : moves) {
+                    board.makeMove(convertUciToMove(board, move));
+                }
             } else if (command.starts_with("go depth")) {
+                table.clear();
                 int depth = std::stoi(command.substr(8));
                 Simplified_ABDADA_Search<q_search, REPLACE_LAST_ENTRY> search(10, board, table);
                 search.parallel_search<Search_Result, true>(depth);
+            } else if (command.starts_with("go movetime")) {
+                table.clear();
+                int depth = DEFAULT_DEPTH;
+                Simplified_ABDADA_Search<q_search, REPLACE_LAST_ENTRY> search(10, board, table);
+                auto result = search.parallel_search<Search_Result, true>(depth);
+                std::cout << "bestmove " << convertMoveToUci(result.move) << std::endl;
             } else if (command == "selfplay") {
                 std::string full_game;
-                int depth = 11;
+                int depth = 9;
                 bool mate = false;
                 while (!mate) {
                     table.clear();
