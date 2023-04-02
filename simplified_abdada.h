@@ -560,10 +560,13 @@ class Simplified_ABDADA_Search {
     std::atomic<bool> finished = false;
     size_t num_threads;
     std::vector<Simplified_ABDADA_Thread<Q_SEARCH, strategy>> searchers;
+    Board& board;
+    Locking_TT<strategy>& table;
 
 public:
-    Simplified_ABDADA_Search(size_t num_threads, Board& board, Locking_TT<strategy>& table) : num_threads(num_threads),
-                                                                  searchers(num_threads, Simplified_ABDADA_Thread<Q_SEARCH, strategy>(board, table, finished)) {
+    explicit Simplified_ABDADA_Search(size_t num_threads, Board& board, Locking_TT<strategy>& table) : num_threads(num_threads),
+                                              searchers(num_threads, Simplified_ABDADA_Thread<Q_SEARCH, strategy>(board, table, finished)),
+                                              board(board), table(table) {
     }
 
     /**
@@ -598,6 +601,7 @@ public:
             result.duration = duration.count();
             result.nodes = node_count;
             result.print_table(iteration, num_threads);
+            table.print_pv(board, depth);
         }
         return result;
     }

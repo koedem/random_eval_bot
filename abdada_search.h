@@ -508,6 +508,7 @@ public:
             result.move = best_move;
             result.eval = eval;
             result.depth = depth;
+            tt.print_pv(board, depth);
         }
         total_node_count += nodes;
     }
