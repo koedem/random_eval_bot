@@ -162,7 +162,7 @@ public:
                                              // but if we had proper move ordering it might produce faster cutoffs
         if (moves.size == 0) {
             if (!board.in_check()) {
-                eval = 0;
+                eval = STALEMATE_SCORE;
             }
             return eval;
         }
@@ -210,7 +210,7 @@ public:
         generate_shuffled_moves<ALL>(moves);
         if (moves.size == 0) {
             if (!board.in_check()) {
-                eval = 0;
+                eval = STALEMATE_SCORE;
             }
             return eval;
         }
@@ -267,7 +267,7 @@ public:
 
         if (moves.size == 0) {
             if (!board.in_check()) {
-                eval = 0;
+                eval = STALEMATE_SCORE;
             }
             return eval;
         }

@@ -194,6 +194,10 @@ public:
     }
 
     Eval_Type null_window_search(Eval_Type beta, int depth) {
+        if (board.isRepetition(2)) {
+            return REPETITION_SCORE;
+        }
+
         Eval_Type eval = MIN_EVAL - MAX_MATE_DEPTH;
         Move tt_move = NO_MOVE;
         Eval_Type alpha = beta - 1;
@@ -207,7 +211,7 @@ public:
         // but if we had proper move ordering it might produce faster cutoffs
         if (moves.size == 0) {
             if (!board.in_check()) {
-                eval = 0;
+                eval = STALEMATE_SCORE;
             }
             return eval;
         }
@@ -275,6 +279,10 @@ public:
     }
 
     Eval_Type pv_search(Eval_Type alpha, Eval_Type beta, int depth) {
+        if (board.isRepetition(2)) { // TODO put in other searches too
+            return REPETITION_SCORE;
+        }
+
         Eval_Type eval = MIN_EVAL - MAX_MATE_DEPTH;
         Move tt_move = NO_MOVE;
         if (tt_probe(tt_move, alpha, beta, depth)) { // I.e. if cutoff
@@ -286,7 +294,7 @@ public:
         generate_shuffled_moves<ALL>(moves);
         if (moves.size == 0) {
             if (!board.in_check()) {
-                eval = 0;
+                eval = STALEMATE_SCORE;
             }
             return eval;
         }
@@ -371,6 +379,10 @@ public:
     }
 
     Eval_Type nega_max(Eval_Type alpha, Eval_Type beta, int depth) {
+        if (board.isRepetition(2)) {
+            return REPETITION_SCORE;
+        }
+
         Eval_Type eval = MIN_EVAL - MAX_MATE_DEPTH;
         Move tt_move = NO_MOVE;
         if (tt_probe(tt_move, alpha, beta, depth)) { // I.e. if cutoff
@@ -382,7 +394,7 @@ public:
         generate_shuffled_moves<ALL>(moves);
         if (moves.size == 0) {
             if (!board.in_check()) {
-                eval = 0;
+                eval = STALEMATE_SCORE;
             }
             return eval;
         }

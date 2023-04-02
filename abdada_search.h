@@ -174,7 +174,7 @@ public:
         generate_shuffled_moves<ALL>(moves);
         if (moves.size == 0) {
             if (!board.in_check()) {
-                eval = 0;
+                eval = STALEMATE_SCORE;
             }
             return eval;
         }
@@ -252,7 +252,7 @@ public:
         generate_shuffled_moves<ALL>(moves);
         if (moves.size == 0) {
             if (!board.in_check()) {
-                eval = 0;
+                eval = STALEMATE_SCORE;
             }
             return eval;
         }
@@ -361,7 +361,7 @@ public:
         generate_shuffled_moves<ALL>(moves);
         if (moves.size == 0) {
             if (!board.in_check()) {
-                eval = 0;
+                eval = STALEMATE_SCORE;
             }
             return eval;
         }
