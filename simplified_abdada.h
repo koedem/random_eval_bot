@@ -611,7 +611,7 @@ public:
      * @return
      */
     template<class Search_Result, bool PV_Search>
-    Search_Result parallel_search(int up_to_depth, int iteration = 0) {
+    Search_Result parallel_search(int up_to_depth) {
         Search_Result result;
         for (int depth = 1; depth <= up_to_depth; depth++) {
             std::vector<std::thread> search_threads;
