@@ -141,7 +141,7 @@ Eval_Type Board::eval<Board::Random>() {
     return uniform(rng);
 }
 
-int seed = 0;
+int seed = STARTING_SEED;
 long murmur64(long h) {
     h += seed;
     h ^= h >> 33;
@@ -157,7 +157,7 @@ void change_seed() {
 }
 
 void reset_seed() {
-    seed = 0;
+    seed = STARTING_SEED;
 }
 
 /**
