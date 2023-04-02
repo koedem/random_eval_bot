@@ -296,8 +296,8 @@ public:
     void print_pv(Board& board, int depth) {
         Board copy(board);
         while (depth > 0) {
-            Locked_TT_Info info{};
-            if (get_if_exists<false>(copy.hashKey, depth, info)) {
+            ABDADA_TT_Info info{};
+            if (get_if_exists<false>(copy.hashKey, depth, info, false)) {
                 Move move = info.move;
                 std::cout << convertMoveToUci(move) << " ";
                 copy.makeMove(move);
