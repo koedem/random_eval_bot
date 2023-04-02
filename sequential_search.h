@@ -122,7 +122,7 @@ public:
     }
 
     Eval_Type null_window_search(Eval_Type beta, int depth) {
-        Eval_Type eval = MIN_EVAL;
+        Eval_Type eval = MIN_EVAL - MAX_MATE_DEPTH;
         Move tt_move = NO_MOVE;
         Eval_Type alpha = beta - 1;
         if (tt_probe(tt_move, alpha, beta, depth)) { // I.e. if cutoff
@@ -132,6 +132,13 @@ public:
         TT_Info entry{eval, tt_move, (int8_t) depth, UPPER_BOUND}; // If we don't find a move, keep the old TT move
         Movelist moves;
         Movegen::legalmoves<ALL>(board, moves);
+        if (moves.size == 0) {
+            if (!board.in_check()) {
+                eval = 0;
+            }
+            return eval;
+        }
+
         int tt_move_index = moves.find(tt_move);
         if (tt_move_index > 0) {
             std::swap(moves[0], moves[tt_move_index]); // Search the TT move first
@@ -161,7 +168,7 @@ public:
     }
 
     Eval_Type pv_search(Eval_Type alpha, Eval_Type beta, int depth) {
-        Eval_Type eval = MIN_EVAL;
+        Eval_Type eval = MIN_EVAL - MAX_MATE_DEPTH;
         Move tt_move = NO_MOVE;
         if (tt_probe(tt_move, alpha, beta, depth)) { // I.e. if cutoff
             return alpha; // TT entry value is put here
@@ -170,6 +177,13 @@ public:
         TT_Info entry{eval, tt_move, (int8_t) depth, UPPER_BOUND}; // If we don't find a move, keep the old TT move
         Movelist moves;
         Movegen::legalmoves<ALL>(board, moves);
+        if (moves.size == 0) {
+            if (!board.in_check()) {
+                eval = 0;
+            }
+            return eval;
+        }
+
         int tt_move_index = moves.find(tt_move);
         if (tt_move_index > 0) {
             std::swap(moves[0], moves[tt_move_index]); // Search the TT move first
@@ -207,7 +221,7 @@ public:
     }
 
     Eval_Type nega_max(Eval_Type alpha, Eval_Type beta, int depth) {
-        Eval_Type eval = MIN_EVAL;
+        Eval_Type eval = MIN_EVAL - MAX_MATE_DEPTH;
         Move tt_move = NO_MOVE;
         if (tt_probe(tt_move, alpha, beta, depth)) { // I.e. if cutoff
             return alpha; // TT entry value is put here
@@ -216,6 +230,12 @@ public:
         TT_Info entry{eval, tt_move, (int8_t) depth, UPPER_BOUND}; // If we don't find a move, keep the old TT move
         Movelist moves;
         Movegen::legalmoves<ALL>(board, moves);
+        if (moves.size == 0) {
+            if (!board.in_check()) {
+                eval = 0;
+            }
+            return eval;
+        }
 
         for (auto& move : moves) {
             board.makeMove(move.move);
@@ -251,7 +271,7 @@ public:
         auto start = std::chrono::high_resolution_clock::now();
         nodes = 0;
         assert(depth > 0);
-        Eval_Type eval = MIN_EVAL;
+        Eval_Type eval = MIN_EVAL - MAX_MATE_DEPTH - 1;
         Move tt_move = NO_MOVE;
         if (tt_probe(tt_move, alpha, beta, depth)) { // This can probably never happen but maybe in parallel search
             return Search_Result{0, 0, tt_move, alpha, (uint16_t) depth};

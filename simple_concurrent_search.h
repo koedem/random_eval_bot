@@ -149,7 +149,7 @@ public:
     }
 
     Eval_Type null_window_search(Eval_Type beta, int depth) {
-        Eval_Type eval = MIN_EVAL;
+        Eval_Type eval = MIN_EVAL - MAX_MATE_DEPTH;
         Move tt_move = NO_MOVE;
         Eval_Type alpha = beta - 1;
         if (tt_probe(tt_move, alpha, beta, depth)) { // I.e. if cutoff
@@ -160,6 +160,13 @@ public:
         Movelist moves;
         generate_shuffled_moves<ALL>(moves); // We could stop shuffling at low enough depth; won't gain much speedup,
                                              // but if we had proper move ordering it might produce faster cutoffs
+        if (moves.size == 0) {
+            if (!board.in_check()) {
+                eval = 0;
+            }
+            return eval;
+        }
+
         int tt_move_index = moves.find(tt_move);
         if (tt_move_index > 0) {
             std::swap(moves[0], moves[tt_move_index]); // Search the TT move first
@@ -192,7 +199,7 @@ public:
     }
 
     Eval_Type pv_search(Eval_Type alpha, Eval_Type beta, int depth) {
-        Eval_Type eval = MIN_EVAL;
+        Eval_Type eval = MIN_EVAL - MAX_MATE_DEPTH;
         Move tt_move = NO_MOVE;
         if (tt_probe(tt_move, alpha, beta, depth)) { // I.e. if cutoff
             return alpha; // TT entry value is put here
@@ -201,6 +208,13 @@ public:
         Locked_TT_Info entry{eval, tt_move, (int8_t) depth, UPPER_BOUND}; // If we don't find a move, keep the old TT move
         Movelist moves;
         generate_shuffled_moves<ALL>(moves);
+        if (moves.size == 0) {
+            if (!board.in_check()) {
+                eval = 0;
+            }
+            return eval;
+        }
+
         int tt_move_index = moves.find(tt_move);
         if (tt_move_index > 0) {
             std::swap(moves[0], moves[tt_move_index]); // Search the TT move first
@@ -241,7 +255,7 @@ public:
     }
 
     Eval_Type nega_max(Eval_Type alpha, Eval_Type beta, int depth) {
-        Eval_Type eval = MIN_EVAL;
+        Eval_Type eval = MIN_EVAL - MAX_MATE_DEPTH;
         Move tt_move = NO_MOVE;
         if (tt_probe(tt_move, alpha, beta, depth)) { // I.e. if cutoff
             return alpha; // TT entry value is put here
@@ -250,6 +264,13 @@ public:
         Locked_TT_Info entry{eval, tt_move, (int8_t) depth, UPPER_BOUND}; // If we don't find a move, keep the old TT move
         Movelist moves;
         generate_shuffled_moves<ALL>(moves);
+
+        if (moves.size == 0) {
+            if (!board.in_check()) {
+                eval = 0;
+            }
+            return eval;
+        }
         // TODO why there no hashmove first here?
         for (auto& move : moves) {
             board.makeMove(move.move);
@@ -287,7 +308,7 @@ public:
     void root_max(Eval_Type alpha, Eval_Type beta, int depth, Search_Result& result, std::atomic<uint64_t>& total_node_count) {
         nodes = 0;
         assert(depth > 0);
-        Eval_Type eval = MIN_EVAL;
+        Eval_Type eval = MIN_EVAL - MAX_MATE_DEPTH - 1;
         Move tt_move = NO_MOVE;
         if (tt_probe(tt_move, alpha, beta, depth)) { // This can probably never happen but maybe in parallel search
             return; // I'm claiming that if this happens, then we already have a search result from another thread so we don't need to return anything
@@ -379,8 +400,8 @@ public:
         Search_Result result;
         for (int depth = 1; depth <= up_to_depth; depth++) {
             std::vector<std::thread> search_threads;
-            Eval_Type alpha = MIN_EVAL;
-            Eval_Type beta = MAX_EVAL;
+            Eval_Type alpha = MIN_EVAL - MAX_MATE_DEPTH - 1;
+            Eval_Type beta = MAX_EVAL + MAX_MATE_DEPTH + 1;
             finished = false;
             std::atomic<uint64_t > node_count = 0;
             auto start = std::chrono::high_resolution_clock::now();

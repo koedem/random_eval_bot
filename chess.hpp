@@ -174,7 +174,10 @@ void reset_seed() {
  */
 template<>
 Eval_Type Board::eval<Board::Pseudo_random>() {
-    return (int16_t) murmur64(hashKey);
+    auto raw_eval = murmur64(hashKey);
+    auto mod_eval = raw_eval % (MAX_EVAL + 1 - MIN_EVAL);
+    auto centered_eval = mod_eval - (MAX_EVAL + 1);
+    return (Eval_Type) centered_eval;
 }
 
 Eval_Type Board::eval() {

@@ -24,11 +24,17 @@ struct Search_Result {
                   << "\t" << nodes << "\t";
 
     }
+
+    void print_uci() const {
+        int millis = (int) (duration * 1000);
+        std::cout << "info depth " << depth << " score cp " << eval << " time " << millis << " nodes " << nodes
+                  << " nps " << (nodes / (millis * 1000 + 1)) << " pv ";
+    }
 };
 
 class UCI {
     Board board;
-    Locking_TT<REPLACE_LAST_ENTRY> table{16384};
+    Locking_TT<REPLACE_LAST_ENTRY> table{8192};
 
 public:
     void uci_loop() {
