@@ -134,7 +134,7 @@ public:
         Movegen::legalmoves<ALL>(board, moves);
         if (moves.size == 0) {
             if (!board.in_check()) {
-                eval = STALEMATE_SCORE;
+                eval = STALEMATE_SCORE[depth % 2];
             }
             return eval;
         }
@@ -179,7 +179,7 @@ public:
         Movegen::legalmoves<ALL>(board, moves);
         if (moves.size == 0) {
             if (!board.in_check()) {
-                eval = STALEMATE_SCORE;
+                eval = STALEMATE_SCORE[depth % 2];
             }
             return eval;
         }
@@ -232,7 +232,7 @@ public:
         Movegen::legalmoves<ALL>(board, moves);
         if (moves.size == 0) {
             if (!board.in_check()) {
-                eval = STALEMATE_SCORE;
+                eval = STALEMATE_SCORE[depth % 2];
             }
             return eval;
         }
