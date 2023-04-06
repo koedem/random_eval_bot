@@ -34,7 +34,7 @@ struct Search_Result {
 
 class UCI {
     Board board;
-    Locking_TT<REPLACE_LAST_ENTRY> table{256};
+    Locking_TT<REPLACE_LAST_ENTRY> table{256}; // TODO depend on default depth
 
 public:
     void uci_loop() {
@@ -68,6 +68,7 @@ public:
             } else if (command.starts_with("go movetime")) {
                 table.clear();
                 int depth = DEFAULT_DEPTH;
+                randomize_seed();
                 Simplified_ABDADA_Search<q_search, REPLACE_LAST_ENTRY> search(10, board, table);
                 auto result = search.parallel_search<Search_Result, true>(depth);
                 std::cout << "bestmove " << convertMoveToUci(result.move) << std::endl;

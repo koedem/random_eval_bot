@@ -141,15 +141,19 @@ Eval_Type Board::eval<Board::Random>() {
     return uniform(rng);
 }
 
-int seed = STARTING_SEED;
-long murmur64(long h) {
-    h += seed;
-    h ^= h >> 33;
-    h *= 0xff51afd7ed558ccdL;
-    h ^= h >> 33;
-    h *= 0xc4ceb9fe1a85ec53L;
-    h ^= h >> 33;
-    return h;
+std::random_device os_seed;
+const auto mt_seed = os_seed();
+static std::mt19937 rng(mt_seed);
+uint64_t seed = STARTING_SEED;
+
+uint64_t murmur64(uint64_t shufflee) {
+    shufflee += seed;
+    shufflee ^= shufflee >> 33;
+    shufflee *= 0xff51afd7ed558ccdL;
+    shufflee ^= shufflee >> 33;
+    shufflee *= 0xc4ceb9fe1a85ec53L;
+    shufflee ^= shufflee >> 33;
+    return shufflee;
 }
 
 void change_seed() {
@@ -158,6 +162,10 @@ void change_seed() {
 
 void reset_seed() {
     seed = STARTING_SEED;
+}
+
+void randomize_seed() {
+    seed = rng();
 }
 
 /**
